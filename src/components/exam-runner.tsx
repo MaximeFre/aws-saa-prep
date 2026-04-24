@@ -1,0 +1,651 @@
+"use client";
+
+import Link from "next/link";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  ChevronDown,
+  Home,
+  Pencil,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+
+import {
+  finalizeExamAction,
+  saveExplanationAction,
+  saveProgressAction,
+} from "@/app/actions";
+import type { ExamSession, SessionProgress } from "@/lib/exam-data";
+import {
+  formatCountdown,
+  isAnswerCorrect,
+  normalizeAnswerSet,
+  scoreOutOf1000,
+} from "@/lib/scoring";
+
+type RunnerState = {
+  answers: Record<number, string[]>;
+  submitted: Record<number, boolean>;
+  currentIndex: number;
+  finished: boolean;
+  finishedAt: string | null;
+};
+
+const emptyState: RunnerState = {
+  answers: {},
+  submitted: {},
+  currentIndex: 0,
+  finished: false,
+  finishedAt: null,
+};
+
+function isMultipleAnswer(correctAnswers: string[], selectionMode: string): boolean {
+  return selectionMode === "multiple" || correctAnswers.length > 1;
+}
+
+export function ExamRunner({
+  session,
+  initialProgress,
+}: {
+  session: ExamSession;
+  initialProgress: SessionProgress | null;
+}) {
+  const persistRef = useRef(false);
+  const finalizedRef = useRef(Boolean(initialProgress?.finished));
+  const [runnerState, setRunnerState] = useState<RunnerState>(() =>
+    initialProgress
+      ? {
+          answers: initialProgress.answers,
+          submitted: initialProgress.submitted,
+          currentIndex: initialProgress.currentIndex,
+          finished: initialProgress.finished,
+          finishedAt: initialProgress.finishedAt,
+        }
+      : emptyState,
+  );
+  const [now, setNow] = useState(() => Date.parse(session.startedAt));
+
+  useEffect(() => {
+    setNow(Date.now());
+  }, []);
+  const [explanationOverrides, setExplanationOverrides] = useState<
+    Record<number, string>
+  >({});
+  const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
+  const [draftExplanation, setDraftExplanation] = useState("");
+  const [isSavingExplanation, startSaveExplanation] = useTransition();
+  const [navCollapsed, setNavCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 720px)");
+    const apply = () => setNavCollapsed(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+  const currentQuestion = session.questions[runnerState.currentIndex];
+  const currentAnswers = currentQuestion
+    ? runnerState.answers[currentQuestion.id] ?? []
+    : [];
+  const currentSubmitted = currentQuestion
+    ? Boolean(runnerState.submitted[currentQuestion.id])
+    : false;
+  const remainingSeconds =
+    session.mode === "timed" && session.timeLimitSeconds !== null
+      ? session.timeLimitSeconds -
+        Math.floor((now - Date.parse(session.startedAt)) / 1000)
+      : null;
+
+  const questionResults = session.questions.map((question) => {
+    const selectedAnswers = runnerState.answers[question.id] ?? [];
+    const correct = isAnswerCorrect(selectedAnswers, question.correctAnswers);
+
+    return {
+      question,
+      selectedAnswers,
+      correct,
+    };
+  });
+
+  const answeredCount = questionResults.filter(
+    (result) => result.selectedAnswers.length > 0,
+  ).length;
+  const correctCount = questionResults.filter((result) => result.correct).length;
+  const scaledScore = scoreOutOf1000(correctCount, session.questions.length);
+  const incorrectResults = questionResults.filter((result) => !result.correct);
+
+  const finishExam = () => {
+    setRunnerState((current) => {
+      if (current.finished) {
+        return current;
+      }
+
+      return {
+        ...current,
+        finished: true,
+        finishedAt: new Date().toISOString(),
+      };
+    });
+  };
+
+  useEffect(() => {
+    if (!persistRef.current) {
+      persistRef.current = true;
+      return;
+    }
+    if (runnerState.finished) return;
+
+    const handle = window.setTimeout(() => {
+      const entries = session.questions
+        .map((question) => {
+          const selected = runnerState.answers[question.id] ?? [];
+          return {
+            questionId: question.id,
+            selected,
+            isCorrect: isAnswerCorrect(selected, question.correctAnswers),
+            submitted: Boolean(runnerState.submitted[question.id]),
+          };
+        })
+        .filter((entry) => entry.selected.length > 0);
+      saveProgressAction(session.id, runnerState.currentIndex, entries).catch(
+        () => {
+          // silently ignore — next change retries
+        },
+      );
+    }, 400);
+
+    return () => window.clearTimeout(handle);
+  }, [runnerState, session.id, session.questions]);
+
+  useEffect(() => {
+    if (!runnerState.finished || finalizedRef.current) return;
+    finalizedRef.current = true;
+    const payload = session.questions.map((question) => {
+      const selected = runnerState.answers[question.id] ?? [];
+      return {
+        questionId: question.id,
+        selected,
+        isCorrect: isAnswerCorrect(selected, question.correctAnswers),
+      };
+    });
+    const correctTotal = payload.filter((entry) => entry.isCorrect).length;
+    const finalScore = scoreOutOf1000(correctTotal, session.questions.length);
+    finalizeExamAction(session.id, correctTotal, finalScore, payload).catch(
+      () => {
+        finalizedRef.current = false;
+      },
+    );
+  }, [runnerState.finished, runnerState.answers, session.id, session.questions]);
+
+  useEffect(() => {
+    if (session.mode !== "timed" || runnerState.finished) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      const nextNow = Date.now();
+      setNow(nextNow);
+
+      if (
+        session.timeLimitSeconds !== null &&
+        session.timeLimitSeconds -
+          Math.floor((nextNow - Date.parse(session.startedAt)) / 1000) <=
+          0
+      ) {
+        setRunnerState((current) => {
+          if (current.finished) {
+            return current;
+          }
+
+          return {
+            ...current,
+            finished: true,
+            finishedAt: new Date().toISOString(),
+          };
+        });
+      }
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [runnerState.finished, session.mode, session.startedAt, session.timeLimitSeconds]);
+
+  if (!currentQuestion) {
+    return null;
+  }
+
+  const handleSelect = (optionLabel: string) => {
+    if (runnerState.finished || (session.mode === "review" && currentSubmitted)) {
+      return;
+    }
+
+    setRunnerState((current) => {
+      const selectedForQuestion = current.answers[currentQuestion.id] ?? [];
+      const allowMultiple = isMultipleAnswer(
+        currentQuestion.correctAnswers,
+        currentQuestion.selectionMode,
+      );
+      let nextValues: string[];
+
+      if (allowMultiple) {
+        nextValues = selectedForQuestion.includes(optionLabel)
+          ? selectedForQuestion.filter((value) => value !== optionLabel)
+          : [...selectedForQuestion, optionLabel];
+      } else {
+        nextValues = [optionLabel];
+      }
+
+      return {
+        ...current,
+        answers: {
+          ...current.answers,
+          [currentQuestion.id]: normalizeAnswerSet(nextValues),
+        },
+      };
+    });
+  };
+
+  const submitCurrentReviewAnswer = () => {
+    if (!currentAnswers.length) {
+      return;
+    }
+
+    setRunnerState((current) => ({
+      ...current,
+      submitted: {
+        ...current.submitted,
+        [currentQuestion.id]: true,
+      },
+    }));
+  };
+
+  const goToQuestion = (index: number) => {
+    setRunnerState((current) => ({
+      ...current,
+      currentIndex: Math.max(0, Math.min(index, session.questions.length - 1)),
+    }));
+  };
+
+  const nextQuestion = () => {
+    if (runnerState.currentIndex === session.questions.length - 1) {
+      finishExam();
+      return;
+    }
+
+    goToQuestion(runnerState.currentIndex + 1);
+  };
+
+  const previousQuestion = () => {
+    if (runnerState.currentIndex === 0) {
+      return;
+    }
+
+    goToQuestion(runnerState.currentIndex - 1);
+  };
+
+  const getOptionState = (optionLabel: string) => {
+    const selected = currentAnswers.includes(optionLabel);
+    const correct = currentQuestion.correctAnswers.includes(optionLabel);
+    const shouldReveal = runnerState.finished || (session.mode === "review" && currentSubmitted);
+
+    if (!shouldReveal) {
+      return selected ? "selected" : "idle";
+    }
+
+    if (correct) {
+      return "correct";
+    }
+
+    if (selected && !correct) {
+      return "incorrect";
+    }
+
+    return "idle";
+  };
+
+  const showReviewDetails =
+    runnerState.finished || (session.mode === "review" && currentSubmitted);
+
+  const getExplanation = (question: { id: number; explanation: string }) =>
+    explanationOverrides[question.id] ?? question.explanation;
+
+  const startEditing = (question: { id: number; explanation: string }) => {
+    setEditingQuestionId(question.id);
+    setDraftExplanation(getExplanation(question));
+  };
+
+  const cancelEditing = () => {
+    setEditingQuestionId(null);
+    setDraftExplanation("");
+  };
+
+  const saveEditing = (questionId: number) => {
+    const value = draftExplanation.trim();
+    if (!value) return;
+    startSaveExplanation(async () => {
+      await saveExplanationAction(questionId, value);
+      setExplanationOverrides((current) => ({
+        ...current,
+        [questionId]: value,
+      }));
+      setEditingQuestionId(null);
+      setDraftExplanation("");
+    });
+  };
+
+  if (runnerState.finished) {
+    return (
+      <main className="page-shell exam-shell">
+        <section className="paper-card results-hero">
+          <div>
+            <p className="eyebrow">Session terminee</p>
+            <h1 className="results-title">{scaledScore} / 1000</h1>
+            <p className="results-subtitle">
+              {correctCount} bonnes reponses sur {session.questions.length}.{" "}
+              {scaledScore >= 720 ? "Seuil de validation atteint." : "Encore un tour et ca passe."}
+            </p>
+          </div>
+
+          <div className="results-metrics">
+            <div>
+              <span>Mode</span>
+              <strong>{session.mode === "timed" ? "Timed" : "Review"}</strong>
+            </div>
+            <div>
+              <span>Questions repondues</span>
+              <strong>{answeredCount}</strong>
+            </div>
+            <div>
+              <span>A revoir</span>
+              <strong>{incorrectResults.length}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="paper-card results-actions">
+          <p>
+            Les explications ci-dessous montrent en priorite les questions
+            incorrectes ou non repondues.
+          </p>
+          <Link className="secondary-button" href="/">
+            <Home size={16} />
+            Revenir a l&apos;accueil
+          </Link>
+        </section>
+
+        <section className="results-list">
+          {(incorrectResults.length ? incorrectResults : questionResults).map(
+            ({ question, selectedAnswers, correct }) => (
+              <article className="paper-card result-card" key={question.id}>
+                <div className="result-head">
+                  <div>
+                    <p className="eyebrow">Question {question.sourceNumber}</p>
+                    <h2 className="result-question">{question.prompt}</h2>
+                  </div>
+                  <div
+                    className={`result-pill ${correct ? "result-pill--ok" : "result-pill--bad"}`}
+                  >
+                    {correct ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                    {correct ? "Correct" : "Incorrect"}
+                  </div>
+                </div>
+
+                <p className="result-line">
+                  <strong>Ta reponse :</strong>{" "}
+                  {selectedAnswers.length ? selectedAnswers.join(", ") : "non repondu"}
+                </p>
+                <p className="result-line">
+                  <strong>Bonne reponse :</strong>{" "}
+                  {question.correctAnswers.join(", ")}
+                </p>
+                <p className="result-explanation">{question.explanation}</p>
+
+                {question.explanationSource === "generated" ? (
+                  <p className="generated-note">
+                    Explication reconstruite parce que la source texte locale etait incomplete.
+                  </p>
+                ) : null}
+              </article>
+            ),
+          )}
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="page-shell exam-shell">
+      <section className="paper-card exam-topbar">
+        <div className="topbar-copy">
+          <p className="eyebrow">
+            {session.mode === "timed" ? "Timed exam" : "Review mode"}
+          </p>
+          <h1 className="exam-title">
+            Question {runnerState.currentIndex + 1} / {session.questions.length}
+          </h1>
+          <p className="exam-meta">
+            {answeredCount} repondues, {session.questions.length - answeredCount} restantes
+          </p>
+        </div>
+
+        <div className="topbar-side">
+          {session.mode === "timed" && remainingSeconds !== null ? (
+            <div className="timer-pill">
+              <Clock3 size={16} />
+              <span>{formatCountdown(remainingSeconds)}</span>
+            </div>
+          ) : (
+            <div className="timer-pill timer-pill--soft">
+              <CheckCircle2 size={16} />
+              <span>Sans chrono</span>
+            </div>
+          )}
+
+          <button className="secondary-button" onClick={() => finishExam()} type="button">
+            Terminer
+          </button>
+        </div>
+      </section>
+
+      <section className="exam-layout">
+        <aside className="paper-card exam-sidebar">
+          <button
+            aria-expanded={!navCollapsed}
+            className="sidebar-toggle"
+            onClick={() => setNavCollapsed((value) => !value)}
+            type="button"
+          >
+            <div className="sidebar-head">
+              <h2>Navigation</h2>
+              <p>Saute directement a une question.</p>
+            </div>
+            <ChevronDown
+              className={`sidebar-chevron ${
+                navCollapsed ? "" : "sidebar-chevron--open"
+              }`}
+              size={18}
+            />
+          </button>
+
+          <div
+            className={`navigator-grid ${
+              navCollapsed ? "navigator-grid--collapsed" : ""
+            }`}
+          >
+            {session.questions.map((question, index) => {
+              const selected = runnerState.answers[question.id] ?? [];
+              const reviewed = runnerState.submitted[question.id];
+
+              return (
+                <button
+                  className={`navigator-chip ${
+                    index === runnerState.currentIndex
+                      ? "navigator-chip--current"
+                      : selected.length
+                        ? reviewed
+                          ? "navigator-chip--reviewed"
+                          : "navigator-chip--answered"
+                        : "navigator-chip--idle"
+                  }`}
+                  key={question.id}
+                  onClick={() => goToQuestion(index)}
+                  type="button"
+                >
+                  {index + 1}
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <section className="paper-card question-panel">
+          <div className="question-head">
+            <div>
+              <p className="eyebrow">Question {currentQuestion.sourceNumber}</p>
+              <h2 className="question-title">{currentQuestion.prompt}</h2>
+            </div>
+
+            {isMultipleAnswer(
+              currentQuestion.correctAnswers,
+              currentQuestion.selectionMode,
+            ) ? (
+              <span className="question-badge">Choisir plusieurs reponses</span>
+            ) : (
+              <span className="question-badge">Choisir une reponse</span>
+            )}
+          </div>
+
+          <div className="option-list">
+            {currentQuestion.options.map((option) => {
+              const state = getOptionState(option.label);
+              const isLocked =
+                runnerState.finished ||
+                (session.mode === "review" && currentSubmitted);
+
+              return (
+                <button
+                  aria-disabled={isLocked}
+                  className={`option-card option-card--${state}${isLocked ? " option-card--locked" : ""}`}
+                  key={option.label}
+                  onClick={() => handleSelect(option.label)}
+                  type="button"
+                >
+                  <span className="option-letter">{option.label}</span>
+                  <span className="option-body">{option.body}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {showReviewDetails ? (
+            <div className="paper-card feedback-panel">
+              <div className="feedback-head">
+                {isAnswerCorrect(currentAnswers, currentQuestion.correctAnswers) ? (
+                  <div className="feedback-pill feedback-pill--ok">
+                    <CheckCircle2 size={16} />
+                    Bonne reponse
+                  </div>
+                ) : (
+                  <div className="feedback-pill feedback-pill--bad">
+                    <AlertTriangle size={16} />
+                    Bonne reponse : {currentQuestion.correctAnswers.join(", ")}
+                  </div>
+                )}
+              </div>
+
+              {editingQuestionId === currentQuestion.id ? (
+                <div className="explanation-editor">
+                  <textarea
+                    className="explanation-textarea"
+                    disabled={isSavingExplanation}
+                    onChange={(event) => setDraftExplanation(event.target.value)}
+                    rows={6}
+                    value={draftExplanation}
+                  />
+                  <div className="explanation-editor-actions">
+                    <button
+                      className="secondary-button"
+                      disabled={isSavingExplanation}
+                      onClick={cancelEditing}
+                      type="button"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      className="primary-button"
+                      disabled={isSavingExplanation || !draftExplanation.trim()}
+                      onClick={() => saveEditing(currentQuestion.id)}
+                      type="button"
+                    >
+                      {isSavingExplanation ? "Sauvegarde..." : "Enregistrer"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="feedback-copy">{getExplanation(currentQuestion)}</p>
+                  {session.mode === "review" ? (
+                    <button
+                      className="secondary-button explanation-edit-button"
+                      onClick={() => startEditing(currentQuestion)}
+                      type="button"
+                    >
+                      <Pencil size={14} />
+                      Editer l&apos;explication
+                    </button>
+                  ) : null}
+                </>
+              )}
+
+              {currentQuestion.explanationSource === "generated" &&
+              !explanationOverrides[currentQuestion.id] ? (
+                <p className="generated-note">
+                  Explication reconstruite a partir de la question parce que le
+                  fichier source n&apos;etait pas complet sur ce point.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="question-actions">
+            <button
+              className="secondary-button"
+              disabled={runnerState.currentIndex === 0}
+              onClick={previousQuestion}
+              type="button"
+            >
+              <ChevronLeft size={16} />
+              Precedente
+            </button>
+
+            <div className="question-actions-right">
+              {session.mode === "review" && !currentSubmitted ? (
+                <button
+                  className="primary-button"
+                  disabled={!currentAnswers.length}
+                  onClick={submitCurrentReviewAnswer}
+                  type="button"
+                >
+                  Valider la reponse
+                </button>
+              ) : (
+                <button className="primary-button" onClick={nextQuestion} type="button">
+                  {runnerState.currentIndex === session.questions.length - 1
+                    ? "Voir le score"
+                    : "Question suivante"}
+                  <ChevronRight size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  );
+}

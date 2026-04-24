@@ -1,0 +1,54 @@
+﻿Service AWS,Category,Domains,Priority
+Direct Connect,Networking,"Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+EC2,Compute,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+EC2 Auto Scaling,Compute,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+Elastic Load Balancing (ELB),Compute,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+Lambda,Serverless,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+Fargate,Serverless,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+Elastic Beanstalk,Compute,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+S3,Storage,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+EBS,Storage,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+EFS,Storage,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+S3 Glacier & S3 Glacier Deep Archive,Storage,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+AWS Backup,Storage,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+VPC,Networking,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures",Tier 1
+Route 53,Networking,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures",Tier 1
+Transit Gateway,Networking,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+CloudFront,Networking,"Domain 1: Design Secure Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+RDS,Database,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures",Tier 1
+Aurora,Database,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures",Tier 1
+DynamoDB,Database,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+ElastiCache,Database,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+IAM,Security Identity and Compliance,"Domain 1: Design Secure Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+KMS,Security Identity and Compliance,"Domain 1: Design Secure Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+Secrets Manager,Security Identity and Compliance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures",Tier 1
+Shield / WAF,Security Identity and Compliance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures",Tier 1
+Cognito,Security Identity and Compliance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures",Tier 1
+Security Hub &  GuardDuty,Security Identity and Compliance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures",Tier 1
+ACM,Security Identity and Compliance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures",Tier 1
+CloudWatch,Management and Governance,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+CloudTrail,Management and Governance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+Config,Management and Governance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures",Tier 1
+Trusted Advisor,Management and Governance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+Well-Architected Tool,Management and Governance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 1
+Database Migration Service (DMS),Migration and Transfer,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+DataSync,Migration and Transfer,"Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+Snow Family,Migration and Transfer,"Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+"Transfer Family (SFTP, FTPS, FTP to S3/EFS)",Migration and Transfer,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures",Tier 2
+Athena,Analytics,"Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+"Kinesis (Data Streams, Firehose)",Analytics,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures",Tier 2
+Glue,Analytics,"Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+QuickSight,Analytics,"Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+CloudFormation,Management and Governance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+Systems Manager (SSM),Management and Governance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures",Tier 2
+Organizations & AWS Control Tower,Management and Governance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+Cost Explorer & AWS Budgets,Management and Governance,"Domain 1: Design Secure Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+ECS / EKS / ECR,Containers,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+Fargate,Containers,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 2
+API Gateway,Front-End Web and Mobile,"Domain 1: Design Secure Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 3
+EventBridge / SQS / SNS / Step Functions,Application Integration,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 3
+Redshift / OpenSearch Service,Analytics,"Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 3
+FSx,Storage,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 3
+Global Accelerator,Networking,"Domain 2: Design Resilient Architectures, Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 3
+Macie / Detective / Inspector,Security Identity and Compliance,"Domain 1: Design Secure Architectures, Domain 2: Design Resilient Architectures",Tier 3
+Cost & Usage Report (CUR) / Savings Plans,Cost Management,"Domain 3: Design High-Performing Architectures, Domain 4: Design Cost-Optimized Architectures",Tier 3

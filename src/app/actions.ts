@@ -1,0 +1,89 @@
+"use server";
+
+import { redirect } from "next/navigation";
+
+import { revalidatePath } from "next/cache";
+
+import {
+  createAuthSession,
+  destroyAuthSession,
+  getCurrentUser,
+  loginOrRegister,
+} from "@/lib/auth";
+import {
+  createExamSession,
+  finalizeExamSession,
+  saveSessionProgress,
+  updateQuestion,
+  updateQuestionExplanation,
+  type ExamMode,
+  type QuestionUpdatePayload,
+} from "@/lib/exam-data";
+
+export async function startExamAction(formData: FormData): Promise<void> {
+  const rawMode = formData.get("mode");
+  const mode: ExamMode = rawMode === "review" ? "review" : "timed";
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect("/");
+  }
+  const session = createExamSession(mode, user.id);
+
+  redirect(`/exam/${session.id}`);
+}
+
+export async function loginAction(formData: FormData): Promise<{
+  error: string | null;
+}> {
+  const pseudo = String(formData.get("pseudo") ?? "");
+  const password = String(formData.get("password") ?? "");
+  const result = loginOrRegister(pseudo, password);
+  if (!result.ok) {
+    return { error: result.error };
+  }
+  await createAuthSession(result.user.id);
+  redirect("/");
+}
+
+export async function logoutAction(): Promise<void> {
+  await destroyAuthSession();
+  redirect("/");
+}
+
+export async function saveExplanationAction(
+  questionId: number,
+  explanation: string,
+): Promise<void> {
+  updateQuestionExplanation(questionId, explanation);
+}
+
+export async function updateQuestionAction(
+  questionId: number,
+  payload: QuestionUpdatePayload,
+): Promise<void> {
+  updateQuestion(questionId, payload);
+  revalidatePath(`/questions/${questionId}`);
+  revalidatePath("/questions");
+}
+
+export async function saveProgressAction(
+  sessionId: string,
+  currentIndex: number,
+  entries: Array<{
+    questionId: number;
+    selected: string[];
+    isCorrect: boolean;
+    submitted: boolean;
+  }>,
+): Promise<void> {
+  saveSessionProgress(sessionId, { currentIndex, entries });
+}
+
+export async function finalizeExamAction(
+  sessionId: string,
+  correctCount: number,
+  score: number,
+  answers: Array<{ questionId: number; selected: string[]; isCorrect: boolean }>,
+): Promise<void> {
+  finalizeExamSession(sessionId, correctCount, score, answers);
+}
