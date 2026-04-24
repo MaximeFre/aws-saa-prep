@@ -15,7 +15,7 @@ export default async function CheatsheetDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const sheet = getCheatsheetBySlug(slug);
+  const sheet = await getCheatsheetBySlug(slug);
   if (!sheet) notFound();
 
   const catClass = categorySlug(sheet.category);

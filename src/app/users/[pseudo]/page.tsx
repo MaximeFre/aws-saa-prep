@@ -41,10 +41,12 @@ export default async function UserDetailPage({
 }) {
   const { pseudo } = await params;
   const decoded = decodeURIComponent(pseudo);
-  const user = getUserByPseudo(decoded);
+  const user = await getUserByPseudo(decoded);
   if (!user) notFound();
-  const stats = getUserStats(user.id);
-  const sessions = getUserSessions(user.id);
+  const [stats, sessions] = await Promise.all([
+    getUserStats(user.id),
+    getUserSessions(user.id),
+  ]);
 
   return (
     <main className="page-shell">

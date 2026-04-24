@@ -12,7 +12,7 @@ export default async function QuestionsPage({
 }) {
   const { q } = await searchParams;
   const search = q?.trim() ?? "";
-  const rows = listQuestions(search);
+  const rows = await listQuestions(search);
 
   return (
     <main className="page-shell">

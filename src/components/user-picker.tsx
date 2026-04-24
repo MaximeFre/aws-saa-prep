@@ -4,14 +4,40 @@ import Link from "next/link";
 import {
   ArrowRight,
   BookOpen,
+  Loader2,
   LogIn,
   LogOut,
   User as UserIcon,
   Users,
 } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, type ReactNode } from "react";
+import { useFormStatus } from "react-dom";
 
 import { loginAction, logoutAction, startExamAction } from "@/app/actions";
+
+function SubmitButton({
+  className,
+  children,
+  pendingLabel,
+}: {
+  className: string;
+  children: ReactNode;
+  pendingLabel?: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <button className={className} disabled={pending} type="submit">
+      {pending ? (
+        <>
+          <Loader2 className="spin" size={16} />
+          {pendingLabel ?? "Chargement..."}
+        </>
+      ) : (
+        children
+      )}
+    </button>
+  );
+}
 
 type LoginState = { error: string | null };
 const initialLoginState: LoginState = { error: null };
@@ -58,7 +84,14 @@ export function UserPicker({ pseudo }: { pseudo: string | null }) {
             type="password"
           />
           <button className="primary-button" disabled={pending} type="submit">
-            {pending ? "..." : "Valider"}
+            {pending ? (
+              <>
+                <Loader2 className="spin" size={16} />
+                Connexion...
+              </>
+            ) : (
+              "Valider"
+            )}
           </button>
         </form>
         {state.error ? (
@@ -114,17 +147,23 @@ export function UserPicker({ pseudo }: { pseudo: string | null }) {
       <div className="user-picker-actions">
         <form action={startExamAction}>
           <input name="mode" type="hidden" value="timed" />
-          <button className="primary-button" type="submit">
+          <SubmitButton
+            className="primary-button"
+            pendingLabel="Creation de l'exam..."
+          >
             Lancer l&apos;exam chronometre
             <ArrowRight size={16} />
-          </button>
+          </SubmitButton>
         </form>
 
         <form action={startExamAction}>
           <input name="mode" type="hidden" value="review" />
-          <button className="secondary-button" type="submit">
+          <SubmitButton
+            className="secondary-button"
+            pendingLabel="Creation..."
+          >
             Ouvrir le mode review
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </div>

@@ -5,8 +5,8 @@ import { listUsersWithStats } from "@/lib/exam-data";
 
 export const dynamic = "force-dynamic";
 
-export default function UsersPage() {
-  const users = listUsersWithStats();
+export default async function UsersPage() {
+  const users = await listUsersWithStats();
 
   return (
     <main className="page-shell">

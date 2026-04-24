@@ -13,7 +13,7 @@ export default async function QuestionDetailPage({
   const { id } = await params;
   const questionId = Number.parseInt(id, 10);
   if (!Number.isFinite(questionId)) notFound();
-  const question = getQuestionDetail(questionId);
+  const question = await getQuestionDetail(questionId);
   if (!question) notFound();
 
   return <QuestionEditor question={question} />;

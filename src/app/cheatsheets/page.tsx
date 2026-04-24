@@ -7,8 +7,10 @@ import { listCheatsheetCategories, listCheatsheets } from "@/lib/exam-data";
 export const dynamic = "force-dynamic";
 
 export default async function CheatsheetsPage() {
-  const categories = listCheatsheetCategories();
-  const rows = listCheatsheets();
+  const [categories, rows] = await Promise.all([
+    listCheatsheetCategories(),
+    listCheatsheets(),
+  ]);
 
   return (
     <main className="page-shell">

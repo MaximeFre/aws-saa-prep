@@ -27,7 +27,7 @@ export async function startExamAction(formData: FormData): Promise<void> {
   if (!user) {
     redirect("/");
   }
-  const session = createExamSession(mode, user.id);
+  const session = await createExamSession(mode, user.id);
 
   redirect(`/exam/${session.id}`);
 }
@@ -37,7 +37,7 @@ export async function loginAction(formData: FormData): Promise<{
 }> {
   const pseudo = String(formData.get("pseudo") ?? "");
   const password = String(formData.get("password") ?? "");
-  const result = loginOrRegister(pseudo, password);
+  const result = await loginOrRegister(pseudo, password);
   if (!result.ok) {
     return { error: result.error };
   }
@@ -54,14 +54,14 @@ export async function saveExplanationAction(
   questionId: number,
   explanation: string,
 ): Promise<void> {
-  updateQuestionExplanation(questionId, explanation);
+  await updateQuestionExplanation(questionId, explanation);
 }
 
 export async function updateQuestionAction(
   questionId: number,
   payload: QuestionUpdatePayload,
 ): Promise<void> {
-  updateQuestion(questionId, payload);
+  await updateQuestion(questionId, payload);
   revalidatePath(`/questions/${questionId}`);
   revalidatePath("/questions");
 }
@@ -76,7 +76,7 @@ export async function saveProgressAction(
     submitted: boolean;
   }>,
 ): Promise<void> {
-  saveSessionProgress(sessionId, { currentIndex, entries });
+  await saveSessionProgress(sessionId, { currentIndex, entries });
 }
 
 export async function finalizeExamAction(
@@ -85,5 +85,5 @@ export async function finalizeExamAction(
   score: number,
   answers: Array<{ questionId: number; selected: string[]; isCorrect: boolean }>,
 ): Promise<void> {
-  finalizeExamSession(sessionId, correctCount, score, answers);
+  await finalizeExamSession(sessionId, correctCount, score, answers);
 }

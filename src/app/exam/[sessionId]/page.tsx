@@ -20,18 +20,19 @@ export default async function ExamSessionPage({
   if (!user) {
     redirect("/");
   }
-  const session = getExamSession(sessionId);
+  const [session, ownerId, progress] = await Promise.all([
+    getExamSession(sessionId),
+    getExamSessionOwner(sessionId),
+    getSessionProgress(sessionId),
+  ]);
 
   if (!session) {
     notFound();
   }
 
-  const ownerId = getExamSessionOwner(sessionId);
   if (ownerId !== null && ownerId !== user.id) {
     redirect("/");
   }
-
-  const progress = getSessionProgress(sessionId);
 
   return <ExamRunner session={session} initialProgress={progress} />;
 }

@@ -1,21 +1,12 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  BookOpenText,
-  Clock3,
-  Database,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 
 import { UserPicker } from "@/components/user-picker";
 import { getCurrentUser } from "@/lib/auth";
-import { getDatasetStats } from "@/lib/exam-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const stats = getDatasetStats();
   const user = await getCurrentUser();
 
   return (
@@ -70,40 +61,6 @@ export default async function HomePage() {
           Voir les cheatsheets
           <ArrowRight size={16} />
         </Link>
-      </section>
-
-      <section className="stats-grid">
-        <article className="paper-card stat-card">
-          <Database size={18} />
-          <div>
-            <p className="stat-value">{stats.totalQuestions}</p>
-            <p className="stat-label">questions en base SQLite</p>
-          </div>
-        </article>
-
-        <article className="paper-card stat-card">
-          <BookOpenText size={18} />
-          <div>
-            <p className="stat-value">{stats.multipleChoiceQuestions}</p>
-            <p className="stat-label">questions multi-reponses</p>
-          </div>
-        </article>
-
-        <article className="paper-card stat-card">
-          <ShieldCheck size={18} />
-          <div>
-            <p className="stat-value">{stats.reconstructedExplanations}</p>
-            <p className="stat-label">corriges reconstruits si source incomplete</p>
-          </div>
-        </article>
-
-        <article className="paper-card stat-card">
-          <Clock3 size={18} />
-          <div>
-            <p className="stat-value">7800 s</p>
-            <p className="stat-label">limite du mode timed</p>
-          </div>
-        </article>
       </section>
 
       <section className="mode-grid">
