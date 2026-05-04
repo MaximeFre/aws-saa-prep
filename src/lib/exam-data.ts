@@ -336,16 +336,21 @@ export type UserSessionRow = {
   correctCount: number | null;
   score: number | null;
   totalQuestions: number;
+  answeredCount: number;
+  currentIndex: number;
 };
 
 export async function getUserSessions(userId: number): Promise<UserSessionRow[]> {
   const db = await getDb();
   const r = await db.execute({
-    sql: `SELECT id, mode, started_at AS startedAt, finished_at AS finishedAt,
-                 correct_count AS correctCount, score,
-                 total_questions AS totalQuestions
-          FROM exam_sessions WHERE user_id = ?
-          ORDER BY started_at DESC`,
+    sql: `SELECT s.id, s.mode, s.started_at AS startedAt, s.finished_at AS finishedAt,
+                 s.correct_count AS correctCount, s.score,
+                 s.total_questions AS totalQuestions,
+                 s.current_index AS currentIndex,
+                 (SELECT COUNT(*) FROM exam_session_answers a
+                  WHERE a.session_id = s.id) AS answeredCount
+          FROM exam_sessions s WHERE s.user_id = ?
+          ORDER BY s.started_at DESC`,
     args: [userId],
   });
   return r.rows.map((row) => ({
@@ -356,7 +361,27 @@ export async function getUserSessions(userId: number): Promise<UserSessionRow[]>
     correctCount: asNullableNumber(row.correctCount),
     score: asNullableNumber(row.score),
     totalQuestions: asNumber(row.totalQuestions),
+    answeredCount: asNumber(row.answeredCount),
+    currentIndex: asNumber(row.currentIndex),
   }));
+}
+
+export async function deleteExamSession(sessionId: string): Promise<void> {
+  const db = await getDb();
+  await db.batch(
+    [
+      {
+        sql: "DELETE FROM exam_session_answers WHERE session_id = ?",
+        args: [sessionId],
+      },
+      {
+        sql: "DELETE FROM exam_session_questions WHERE session_id = ?",
+        args: [sessionId],
+      },
+      { sql: "DELETE FROM exam_sessions WHERE id = ?", args: [sessionId] },
+    ],
+    "write",
+  );
 }
 
 export type UserStats = {

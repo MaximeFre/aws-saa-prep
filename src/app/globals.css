@@ -1571,15 +1571,33 @@ button {
 }
 
 .user-sessions-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) 100px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  display: flex;
+  align-items: center;
   gap: 12px;
   padding: 10px 14px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.68);
   border: 1px solid rgba(56, 52, 46, 0.08);
-  align-items: center;
   font-size: 0.94rem;
+}
+
+.user-sessions-row__link {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) 100px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.user-sessions-row__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 36px;
 }
 
 .user-sessions-row--link {
@@ -1605,6 +1623,68 @@ button {
   letter-spacing: 0.14em;
   padding-top: 0;
   padding-bottom: 0;
+}
+
+.session-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.session-progress-label {
+  font-size: 0.84rem;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-progress-bar {
+  display: block;
+  height: 4px;
+  background: rgba(56, 52, 46, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.session-progress-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 200ms ease;
+}
+
+.session-delete-button {
+  background: transparent;
+  border: 1px solid rgba(56, 52, 46, 0.12);
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+  padding: 0;
+}
+
+.session-delete-button:hover:not(:disabled) {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.35);
+  background: rgba(180, 35, 24, 0.08);
+}
+
+.session-delete-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.session-delete-error {
+  font-size: 0.78rem;
+  color: #b42318;
 }
 
 .session-mode-pill {
@@ -1633,7 +1713,7 @@ button {
 }
 
 @media (max-width: 720px) {
-  .user-sessions-row {
+  .user-sessions-row__link {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -1641,7 +1721,7 @@ button {
     display: none;
   }
 
-  .user-sessions-row > span:first-child {
+  .user-sessions-row__link > span:first-child {
     grid-column: 1 / -1;
     font-weight: 500;
   }

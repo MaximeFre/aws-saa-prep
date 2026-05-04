@@ -12,7 +12,9 @@ import {
 } from "@/lib/auth";
 import {
   createExamSession,
+  deleteExamSession,
   finalizeExamSession,
+  getExamSessionOwner,
   saveSessionProgress,
   updateQuestion,
   updateQuestionExplanation,
@@ -86,4 +88,23 @@ export async function finalizeExamAction(
   answers: Array<{ questionId: number; selected: string[]; isCorrect: boolean }>,
 ): Promise<void> {
   await finalizeExamSession(sessionId, correctCount, score, answers);
+}
+
+export async function deleteSessionAction(
+  sessionId: string,
+): Promise<{ error: string | null }> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: "Non connecte." };
+  }
+  const ownerId = await getExamSessionOwner(sessionId);
+  if (ownerId === null) {
+    return { error: "Session introuvable." };
+  }
+  if (ownerId !== user.id) {
+    return { error: "Cette session ne t'appartient pas." };
+  }
+  await deleteExamSession(sessionId);
+  revalidatePath(`/users/${encodeURIComponent(user.pseudo)}`);
+  return { error: null };
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Clock3, Gauge, Trophy } from "lucide-react";
 
+import { SessionRow } from "@/components/session-row";
 import {
   getUserByPseudo,
   getUserSessions,
@@ -126,40 +127,25 @@ export default async function UserDetailPage({
         ) : (
           <div className="user-sessions-table">
             <div className="user-sessions-row user-sessions-row--head">
-              <span>Demarrage</span>
-              <span>Mode</span>
-              <span>Duree</span>
-              <span>Score</span>
-              <span>Bonnes</span>
+              <div className="user-sessions-row__link">
+                <span>Demarrage</span>
+                <span>Mode</span>
+                <span>Duree</span>
+                <span>Score</span>
+                <span>Bonnes</span>
+              </div>
+              <div aria-hidden className="user-sessions-row__actions" />
             </div>
             {sessions.map((session) => (
-              <Link
-                className="user-sessions-row user-sessions-row--link"
-                href={`/exam/${session.id}`}
+              <SessionRow
+                formattedDate={formatDate(session.startedAt)}
+                formattedDuration={formatDuration(
+                  session.startedAt,
+                  session.finishedAt,
+                )}
                 key={session.id}
-              >
-                <span>{formatDate(session.startedAt)}</span>
-                <span>
-                  <span
-                    className={`session-mode-pill session-mode-pill--${session.mode}`}
-                  >
-                    {session.mode}
-                  </span>
-                </span>
-                <span>{formatDuration(session.startedAt, session.finishedAt)}</span>
-                <span>
-                  {session.score !== null
-                    ? `${session.score} / 1000`
-                    : session.finishedAt
-                      ? "-"
-                      : "en cours"}
-                </span>
-                <span>
-                  {session.correctCount !== null
-                    ? `${session.correctCount} / ${session.totalQuestions}`
-                    : "-"}
-                </span>
-              </Link>
+                session={session}
+              />
             ))}
           </div>
         )}
