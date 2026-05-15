@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { startQuizAction } from "@/app/actions";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { requireMember } from "@/lib/auth";
 import { categorySlug, prioritySlug } from "@/lib/cheatsheet-style";
 import {
@@ -91,14 +92,14 @@ export default async function CheatsheetDetailPage({
         <form action={startQuizAction}>
           <input name="cheatsheetId" type="hidden" value={sheet.id} />
           <input name="cheatsheetSlug" type="hidden" value={sheet.slug} />
-          <button
+          <FormSubmitButton
             className="primary-button"
             disabled={questionCount === 0}
-            type="submit"
+            pendingLabel="Démarrage…"
           >
             <Sparkles size={16} />
             Lancer le quiz
-          </button>
+          </FormSubmitButton>
         </form>
       </section>
 

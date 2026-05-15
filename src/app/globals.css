@@ -2405,6 +2405,21 @@ button {
   color: var(--muted-foreground);
 }
 
+.quick-card--pending {
+  opacity: 0.85;
+  cursor: wait;
+  pointer-events: none;
+}
+
+.quick-card-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--accent);
+}
+
 .dashboard-mastery {
   padding: 20px 24px;
 }
@@ -2495,6 +2510,128 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* loaders & skeletons */
+.page-loader {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 28px;
+  margin-bottom: 16px;
+}
+
+.page-loader-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.page-loader-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.page-loader-copy .users-title {
+  margin: 0;
+}
+
+.page-loader-copy .users-subtitle {
+  margin: 0;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.skeleton-card {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(56, 52, 46, 0.06) 0%,
+      rgba(56, 52, 46, 0.14) 50%,
+      rgba(56, 52, 46, 0.06) 100%
+    );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+.skeleton-line--xs {
+  width: 30%;
+  height: 10px;
+}
+
+.skeleton-line--sm {
+  width: 45%;
+}
+
+.skeleton-line--md {
+  width: 75%;
+}
+
+.skeleton-line--lg {
+  width: 100%;
+  height: 18px;
+}
+
+.exam-save-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: rgba(56, 52, 46, 0.05);
+  border: 1px solid var(--border);
+  transition: opacity 0.2s ease;
+}
+
+.exam-save-pill--saving {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: rgba(34, 88, 217, 0.2);
+}
+
+.exam-save-pill--saved {
+  color: var(--success);
+  background: var(--success-soft);
+  border-color: rgba(15, 118, 110, 0.2);
+}
+
+.exam-save-pill--error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: rgba(180, 35, 24, 0.2);
 }
 
 @media (prefers-reduced-motion: reduce) {

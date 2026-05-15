@@ -6,12 +6,15 @@ import {
   ArrowLeft,
   BookOpen,
   CheckCircle2,
+  CheckCircle,
   ChevronLeft,
   ChevronRight,
   Clock3,
   ChevronDown,
+  CloudOff,
   ExternalLink,
   Home,
+  Loader2,
   XCircle,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -25,6 +28,41 @@ import {
   normalizeAnswerSet,
   scoreOutOf1000,
 } from "@/lib/scoring";
+
+function SaveIndicator({
+  status,
+}: {
+  status: "idle" | "saving" | "saved" | "error";
+}) {
+  if (status === "idle") {
+    return null;
+  }
+  if (status === "saving") {
+    return (
+      <span
+        aria-live="polite"
+        className="exam-save-pill exam-save-pill--saving"
+      >
+        <Loader2 className="spin" size={12} />
+        Sauvegarde…
+      </span>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <span aria-live="polite" className="exam-save-pill exam-save-pill--saved">
+        <CheckCircle size={12} />
+        Sauvegardé
+      </span>
+    );
+  }
+  return (
+    <span aria-live="polite" className="exam-save-pill exam-save-pill--error">
+      <CloudOff size={12} />
+      Hors-ligne
+    </span>
+  );
+}
 
 function QuestionPrompt({
   prompt,
@@ -88,6 +126,10 @@ export function ExamRunner({
 }) {
   const persistRef = useRef(false);
   const finalizedRef = useRef(Boolean(initialProgress?.finished));
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const saveResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [runnerState, setRunnerState] = useState<RunnerState>(() =>
     initialProgress
       ? {
@@ -178,15 +220,32 @@ export function ExamRunner({
           };
         })
         .filter((entry) => entry.selected.length > 0);
-      saveProgressAction(session.id, runnerState.currentIndex, entries).catch(
-        () => {
-          // silently ignore — next change retries
-        },
-      );
+      setSaveStatus("saving");
+      saveProgressAction(session.id, runnerState.currentIndex, entries)
+        .then(() => {
+          setSaveStatus("saved");
+          if (saveResetRef.current) {
+            clearTimeout(saveResetRef.current);
+          }
+          saveResetRef.current = setTimeout(() => {
+            setSaveStatus("idle");
+          }, 1600);
+        })
+        .catch(() => {
+          setSaveStatus("error");
+        });
     }, 400);
 
     return () => window.clearTimeout(handle);
   }, [runnerState, session.id, session.questions]);
+
+  useEffect(() => {
+    return () => {
+      if (saveResetRef.current) {
+        clearTimeout(saveResetRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!runnerState.finished || finalizedRef.current) return;
@@ -467,6 +526,7 @@ export function ExamRunner({
         </div>
 
         <div className="topbar-side">
+          <SaveIndicator status={saveStatus} />
           {isQuiz && session.cheatsheetSlug ? (
             <Link
               className="timer-pill timer-pill--soft"

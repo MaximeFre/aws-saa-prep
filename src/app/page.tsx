@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { startExamAction } from "@/app/actions";
+import { FormSubmitCard } from "@/components/form-submit-button";
 import { UserPicker } from "@/components/user-picker";
 import { getCurrentUser } from "@/lib/auth";
 import {
@@ -187,19 +188,19 @@ async function MemberDashboard({
       <section className="dashboard-quick-grid">
         <form action={startExamAction}>
           <input name="mode" type="hidden" value="timed" />
-          <button className="paper-card quick-card" type="submit">
+          <FormSubmitCard className="paper-card quick-card">
             <Timer size={20} />
             <strong>Exam timed</strong>
             <span>65 questions · 2 h 10</span>
-          </button>
+          </FormSubmitCard>
         </form>
         <form action={startExamAction}>
           <input name="mode" type="hidden" value="review" />
-          <button className="paper-card quick-card" type="submit">
+          <FormSubmitCard className="paper-card quick-card">
             <Sparkles size={20} />
             <strong>Mode review</strong>
             <span>Feedback immédiat</span>
-          </button>
+          </FormSubmitCard>
         </form>
         <Link className="paper-card quick-card" href="/cheatsheets">
           <BookOpen size={20} />
