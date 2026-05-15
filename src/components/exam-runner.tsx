@@ -12,16 +12,11 @@ import {
   ChevronDown,
   ExternalLink,
   Home,
-  Pencil,
   XCircle,
 } from "lucide-react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import {
-  finalizeExamAction,
-  saveExplanationAction,
-  saveProgressAction,
-} from "@/app/actions";
+import { finalizeExamAction, saveProgressAction } from "@/app/actions";
 import type { ExamSession, SessionProgress } from "@/lib/exam-data";
 import { splitPromptParagraphs } from "@/lib/format-prompt";
 import {
@@ -96,12 +91,6 @@ export function ExamRunner({
   useEffect(() => {
     setNow(Date.now());
   }, []);
-  const [explanationOverrides, setExplanationOverrides] = useState<
-    Record<number, string>
-  >({});
-  const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
-  const [draftExplanation, setDraftExplanation] = useState("");
-  const [isSavingExplanation, startSaveExplanation] = useTransition();
   const [navCollapsed, setNavCollapsed] = useState(false);
 
   useEffect(() => {
@@ -336,33 +325,6 @@ export function ExamRunner({
   const showReviewDetails =
     runnerState.finished || (session.mode === "review" && currentSubmitted);
 
-  const getExplanation = (question: { id: number; explanation: string }) =>
-    explanationOverrides[question.id] ?? question.explanation;
-
-  const startEditing = (question: { id: number; explanation: string }) => {
-    setEditingQuestionId(question.id);
-    setDraftExplanation(getExplanation(question));
-  };
-
-  const cancelEditing = () => {
-    setEditingQuestionId(null);
-    setDraftExplanation("");
-  };
-
-  const saveEditing = (questionId: number) => {
-    const value = draftExplanation.trim();
-    if (!value) return;
-    startSaveExplanation(async () => {
-      await saveExplanationAction(questionId, value);
-      setExplanationOverrides((current) => ({
-        ...current,
-        [questionId]: value,
-      }));
-      setEditingQuestionId(null);
-      setDraftExplanation("");
-    });
-  };
-
   const isQuiz = session.kind === "quiz";
   const masteryPct =
     session.questions.length > 0
@@ -463,12 +425,6 @@ export function ExamRunner({
                   {question.correctAnswers.join(", ")}
                 </p>
                 <p className="result-explanation">{question.explanation}</p>
-
-                {question.explanationSource === "generated" ? (
-                  <p className="generated-note">
-                    Explication reconstruite parce que la source texte locale etait incomplete.
-                  </p>
-                ) : null}
               </article>
             ),
           )}
@@ -631,57 +587,7 @@ export function ExamRunner({
                 )}
               </div>
 
-              {editingQuestionId === currentQuestion.id ? (
-                <div className="explanation-editor">
-                  <textarea
-                    className="explanation-textarea"
-                    disabled={isSavingExplanation}
-                    onChange={(event) => setDraftExplanation(event.target.value)}
-                    rows={6}
-                    value={draftExplanation}
-                  />
-                  <div className="explanation-editor-actions">
-                    <button
-                      className="secondary-button"
-                      disabled={isSavingExplanation}
-                      onClick={cancelEditing}
-                      type="button"
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      className="primary-button"
-                      disabled={isSavingExplanation || !draftExplanation.trim()}
-                      onClick={() => saveEditing(currentQuestion.id)}
-                      type="button"
-                    >
-                      {isSavingExplanation ? "Sauvegarde..." : "Enregistrer"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <p className="feedback-copy">{getExplanation(currentQuestion)}</p>
-                  {session.mode === "review" ? (
-                    <button
-                      className="secondary-button explanation-edit-button"
-                      onClick={() => startEditing(currentQuestion)}
-                      type="button"
-                    >
-                      <Pencil size={14} />
-                      Editer l&apos;explication
-                    </button>
-                  ) : null}
-                </>
-              )}
-
-              {currentQuestion.explanationSource === "generated" &&
-              !explanationOverrides[currentQuestion.id] ? (
-                <p className="generated-note">
-                  Explication reconstruite a partir de la question parce que le
-                  fichier source n&apos;etait pas complet sur ce point.
-                </p>
-              ) : null}
+              <p className="feedback-copy">{currentQuestion.explanation}</p>
 
               {currentQuestion.cheatsheets.length > 0 ? (
                 <div className="feedback-cheatsheets">
