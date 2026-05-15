@@ -2,9 +2,16 @@ import "server-only";
 
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { asNumber, asString, getDb } from "./db";
-import { normalizePseudoKey, type User } from "./exam-data";
+import {
+  isAdminRole,
+  isMemberRole,
+  normalizePseudoKey,
+  type User,
+  type UserRole,
+} from "./exam-data";
 
 const COOKIE_NAME = "aws_saa_auth";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
@@ -44,7 +51,7 @@ export async function loginOrRegister(
   const db = await getDb();
   const key = normalizePseudoKey(cleanedPseudo);
   const r = await db.execute({
-    sql: "SELECT id, pseudo, password_hash FROM users WHERE pseudo_key = ?",
+    sql: "SELECT id, pseudo, password_hash, role FROM users WHERE pseudo_key = ?",
     args: [key],
   });
   const existing = r.rows[0];
@@ -53,26 +60,27 @@ export async function loginOrRegister(
     const storedHash = existing.password_hash as string | null;
     const userId = asNumber(existing.id);
     const pseudoOut = asString(existing.pseudo);
+    const role = (asString(existing.role) || "free") as UserRole;
     if (!storedHash) {
       await db.execute({
         sql: "UPDATE users SET password_hash = ? WHERE id = ?",
         args: [hashPassword(cleanedPassword), userId],
       });
-      return { ok: true, user: { id: userId, pseudo: pseudoOut } };
+      return { ok: true, user: { id: userId, pseudo: pseudoOut, role } };
     }
     if (!verifyPassword(cleanedPassword, storedHash)) {
       return { ok: false, error: "Mot de passe incorrect." };
     }
-    return { ok: true, user: { id: userId, pseudo: pseudoOut } };
+    return { ok: true, user: { id: userId, pseudo: pseudoOut, role } };
   }
 
   const info = await db.execute({
-    sql: "INSERT INTO users (pseudo, pseudo_key, created_at, password_hash) VALUES (?, ?, ?, ?)",
+    sql: "INSERT INTO users (pseudo, pseudo_key, created_at, password_hash, role) VALUES (?, ?, ?, ?, 'free')",
     args: [cleanedPseudo, key, new Date().toISOString(), hashPassword(cleanedPassword)],
   });
   return {
     ok: true,
-    user: { id: Number(info.lastInsertRowid), pseudo: cleanedPseudo },
+    user: { id: Number(info.lastInsertRowid), pseudo: cleanedPseudo, role: "free" },
   };
 }
 
@@ -111,7 +119,7 @@ export async function getCurrentUser(): Promise<User | null> {
   if (!token) return null;
   const db = await getDb();
   const r = await db.execute({
-    sql: `SELECT u.id, u.pseudo
+    sql: `SELECT u.id, u.pseudo, u.role
           FROM user_auth_sessions s
           JOIN users u ON u.id = s.user_id
           WHERE s.token = ?`,
@@ -119,5 +127,25 @@ export async function getCurrentUser(): Promise<User | null> {
   });
   const row = r.rows[0];
   if (!row) return null;
-  return { id: asNumber(row.id), pseudo: asString(row.pseudo) };
+  return {
+    id: asNumber(row.id),
+    pseudo: asString(row.pseudo),
+    role: (asString(row.role) || "free") as UserRole,
+  };
+}
+
+export async function requireMember(): Promise<User> {
+  const user = await getCurrentUser();
+  if (!user || !isMemberRole(user.role)) {
+    redirect("/");
+  }
+  return user;
+}
+
+export async function requireAdmin(): Promise<User> {
+  const user = await getCurrentUser();
+  if (!user || !isAdminRole(user.role)) {
+    redirect("/");
+  }
+  return user;
 }

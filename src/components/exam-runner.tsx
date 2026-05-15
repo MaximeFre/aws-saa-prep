@@ -28,19 +28,32 @@ import {
 
 function QuestionPrompt({
   prompt,
+  extra,
   className,
 }: {
   prompt: string;
+  extra?: string | null;
   className: string;
 }) {
   const paragraphs = splitPromptParagraphs(prompt);
+  const extraBlock = extra ? (
+    <pre className="question-extra">
+      <code>{extra}</code>
+    </pre>
+  ) : null;
   if (paragraphs.length <= 1) {
-    return <h2 className={className}>{paragraphs[0] ?? prompt}</h2>;
+    return (
+      <div className="question-prompt">
+        <h2 className={className}>{paragraphs[0] ?? prompt}</h2>
+        {extraBlock}
+      </div>
+    );
   }
   const [scenario, ...rest] = paragraphs;
   return (
     <div className="question-prompt">
       <p className="question-scenario">{scenario}</p>
+      {extraBlock}
       <h2 className={className}>{rest.join(" ")}</h2>
     </div>
   );
@@ -406,6 +419,7 @@ export function ExamRunner({
                     <QuestionPrompt
                       className="result-question"
                       prompt={question.prompt}
+                      extra={question.extraContent}
                     />
                   </div>
                   <div
@@ -536,6 +550,7 @@ export function ExamRunner({
               <QuestionPrompt
                 className="question-title"
                 prompt={currentQuestion.prompt}
+                extra={currentQuestion.extraContent}
               />
             </div>
 

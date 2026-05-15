@@ -2,11 +2,13 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { CheatsheetGrid } from "@/components/cheatsheet-grid";
+import { requireMember } from "@/lib/auth";
 import { listCheatsheetCategories, listCheatsheets } from "@/lib/exam-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function CheatsheetsPage() {
+  await requireMember();
   const [categories, rows] = await Promise.all([
     listCheatsheetCategories(),
     listCheatsheets(),

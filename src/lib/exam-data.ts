@@ -22,6 +22,7 @@ export type ExamQuestion = {
   id: number;
   sourceNumber: number;
   prompt: string;
+  extraContent: string | null;
   selectionMode: "single" | "multiple";
   correctAnswers: string[];
   explanation: string;
@@ -111,6 +112,7 @@ export type QuestionDetail = {
   id: number;
   sourceNumber: number;
   prompt: string;
+  extraContent: string | null;
   selectionMode: "single" | "multiple";
   correctAnswers: string[];
   explanation: string;
@@ -123,7 +125,7 @@ export async function getQuestionDetail(
 ): Promise<QuestionDetail | null> {
   const db = await getDb();
   const q = await db.execute({
-    sql: `SELECT id, source_number, prompt, selection_mode, correct_answers,
+    sql: `SELECT id, source_number, prompt, extra_content, selection_mode, correct_answers,
                  explanation, explanation_source
           FROM questions WHERE id = ?`,
     args: [questionId],
@@ -139,6 +141,7 @@ export async function getQuestionDetail(
     id: asNumber(row.id),
     sourceNumber: asNumber(row.source_number),
     prompt: asString(row.prompt),
+    extraContent: asNullableString(row.extra_content),
     selectionMode: asString(row.selection_mode) as "single" | "multiple",
     correctAnswers: JSON.parse(asString(row.correct_answers)) as string[],
     explanation: asString(row.explanation),
@@ -449,7 +452,24 @@ export async function getDatasetStats(): Promise<DatasetStats> {
   };
 }
 
-export type User = { id: number; pseudo: string };
+export type UserRole = "free" | "member" | "admin";
+
+export const ALL_ROLES: UserRole[] = ["free", "member", "admin"];
+
+export function isMemberRole(role: UserRole): boolean {
+  return role === "member" || role === "admin";
+}
+
+export function isAdminRole(role: UserRole): boolean {
+  return role === "admin";
+}
+
+function normalizeRole(value: unknown): UserRole {
+  const s = String(value ?? "free");
+  return s === "admin" || s === "member" ? s : "free";
+}
+
+export type User = { id: number; pseudo: string; role: UserRole };
 
 export async function findOrCreateUser(pseudo: string): Promise<User> {
   const db = await getDb();
@@ -457,39 +477,50 @@ export async function findOrCreateUser(pseudo: string): Promise<User> {
   if (!cleaned) throw new Error("Pseudo cannot be empty.");
   const key = normalizePseudoKey(cleaned);
   const existing = await db.execute({
-    sql: "SELECT id, pseudo FROM users WHERE pseudo_key = ?",
+    sql: "SELECT id, pseudo, role FROM users WHERE pseudo_key = ?",
     args: [key],
   });
   if (existing.rows[0]) {
     return {
       id: asNumber(existing.rows[0].id),
       pseudo: asString(existing.rows[0].pseudo),
+      role: normalizeRole(existing.rows[0].role),
     };
   }
   const info = await db.execute({
-    sql: "INSERT INTO users (pseudo, pseudo_key, created_at) VALUES (?, ?, ?)",
+    sql: "INSERT INTO users (pseudo, pseudo_key, created_at, role) VALUES (?, ?, ?, 'free')",
     args: [cleaned, key, new Date().toISOString()],
   });
-  return { id: Number(info.lastInsertRowid), pseudo: cleaned };
+  return { id: Number(info.lastInsertRowid), pseudo: cleaned, role: "free" };
 }
 
 export async function getUserByPseudo(pseudo: string): Promise<User | null> {
   const db = await getDb();
   const r = await db.execute({
-    sql: "SELECT id, pseudo FROM users WHERE pseudo_key = ?",
+    sql: "SELECT id, pseudo, role FROM users WHERE pseudo_key = ?",
     args: [normalizePseudoKey(pseudo)],
   });
   const row = r.rows[0];
   if (!row) return null;
-  return { id: asNumber(row.id), pseudo: asString(row.pseudo) };
+  return {
+    id: asNumber(row.id),
+    pseudo: asString(row.pseudo),
+    role: normalizeRole(row.role),
+  };
 }
 
 export async function listUsersWithStats(): Promise<
-  Array<User & { sessionCount: number; avgScore: number | null; bestScore: number | null }>
+  Array<
+    User & {
+      sessionCount: number;
+      avgScore: number | null;
+      bestScore: number | null;
+    }
+  >
 > {
   const db = await getDb();
   const r = await db.execute(
-    `SELECT u.id, u.pseudo,
+    `SELECT u.id, u.pseudo, u.role,
             COUNT(s.id) AS sessionCount,
             AVG(s.score) AS avgScore,
             MAX(s.score) AS bestScore
@@ -502,10 +533,31 @@ export async function listUsersWithStats(): Promise<
   return r.rows.map((row) => ({
     id: asNumber(row.id),
     pseudo: asString(row.pseudo),
+    role: normalizeRole(row.role),
     sessionCount: asNumber(row.sessionCount),
     avgScore: asNullableNumber(row.avgScore),
     bestScore: asNullableNumber(row.bestScore),
   }));
+}
+
+export async function setUserRole(
+  userId: number,
+  role: UserRole,
+): Promise<void> {
+  if (!ALL_ROLES.includes(role)) {
+    throw new Error(`Invalid role: ${role}`);
+  }
+  const db = await getDb();
+  await db.execute({
+    sql: "UPDATE users SET role = ? WHERE id = ?",
+    args: [role, userId],
+  });
+}
+
+export async function countAdmins(): Promise<number> {
+  const db = await getDb();
+  const r = await db.execute("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'");
+  return asNumber(r.rows[0]?.n);
 }
 
 export type UserSessionRow = {
@@ -855,7 +907,8 @@ export async function getExamSession(
   const r = await db.execute({
     sql: `SELECT
             esq.position AS question_position,
-            q.id AS question_id, q.source_number, q.prompt, q.selection_mode,
+            q.id AS question_id, q.source_number, q.prompt, q.extra_content,
+            q.selection_mode,
             q.correct_answers, q.explanation, q.explanation_source,
             qo.label AS option_label, qo.body AS option_body
           FROM exam_session_questions esq
@@ -874,6 +927,7 @@ export async function getExamSession(
         id: qid,
         sourceNumber: asNumber(row.source_number),
         prompt: asString(row.prompt),
+        extraContent: asNullableString(row.extra_content),
         selectionMode: asString(row.selection_mode) as "single" | "multiple",
         correctAnswers: JSON.parse(asString(row.correct_answers)) as string[],
         explanation: asString(row.explanation),

@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { ExamRunner } from "@/components/exam-runner";
-import { getCurrentUser } from "@/lib/auth";
+import { requireMember } from "@/lib/auth";
 import {
   getExamSession,
   getExamSessionOwner,
@@ -16,10 +16,7 @@ export default async function QuizSessionPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = await params;
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/");
-  }
+  const user = await requireMember();
   const [session, ownerId, progress] = await Promise.all([
     getExamSession(sessionId),
     getExamSessionOwner(sessionId),

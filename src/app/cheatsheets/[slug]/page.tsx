@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { startQuizAction } from "@/app/actions";
-import { getCurrentUser } from "@/lib/auth";
+import { requireMember } from "@/lib/auth";
 import { categorySlug, prioritySlug } from "@/lib/cheatsheet-style";
 import {
   countQuestionsForCheatsheet,
@@ -22,15 +22,15 @@ export default async function CheatsheetDetailPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const user = await requireMember();
   const { slug } = await params;
   const sp = await searchParams;
   const sheet = await getCheatsheetBySlug(slug);
   if (!sheet) notFound();
 
-  const user = await getCurrentUser();
   const [questionCount, mastery] = await Promise.all([
     countQuestionsForCheatsheet(sheet.id),
-    user ? getCheatsheetMastery(user.id, sheet.id) : null,
+    getCheatsheetMastery(user.id, sheet.id),
   ]);
 
   const catClass = categorySlug(sheet.category);
@@ -88,24 +88,18 @@ export default async function CheatsheetDetailPage({
             </p>
           ) : null}
         </div>
-        {user ? (
-          <form action={startQuizAction}>
-            <input name="cheatsheetId" type="hidden" value={sheet.id} />
-            <input name="cheatsheetSlug" type="hidden" value={sheet.slug} />
-            <button
-              className="primary-button"
-              disabled={questionCount === 0}
-              type="submit"
-            >
-              <Sparkles size={16} />
-              Lancer le quiz
-            </button>
-          </form>
-        ) : (
-          <Link className="secondary-button" href="/">
-            Connecte-toi pour quizzer
-          </Link>
-        )}
+        <form action={startQuizAction}>
+          <input name="cheatsheetId" type="hidden" value={sheet.id} />
+          <input name="cheatsheetSlug" type="hidden" value={sheet.slug} />
+          <button
+            className="primary-button"
+            disabled={questionCount === 0}
+            type="submit"
+          >
+            <Sparkles size={16} />
+            Lancer le quiz
+          </button>
+        </form>
       </section>
 
       <article className="paper-card cheatsheet-article">

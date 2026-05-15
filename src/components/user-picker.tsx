@@ -1,43 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import {
-  ArrowRight,
-  BookOpen,
-  Loader2,
-  LogIn,
-  LogOut,
-  User as UserIcon,
-  Users,
-} from "lucide-react";
-import { useActionState, type ReactNode } from "react";
-import { useFormStatus } from "react-dom";
+import { Loader2, LogIn, LogOut, User as UserIcon } from "lucide-react";
+import { useActionState } from "react";
 
-import { loginAction, logoutAction, startExamAction } from "@/app/actions";
-
-function SubmitButton({
-  className,
-  children,
-  pendingLabel,
-}: {
-  className: string;
-  children: ReactNode;
-  pendingLabel?: string;
-}) {
-  const { pending } = useFormStatus();
-  return (
-    <button className={className} disabled={pending} type="submit">
-      {pending ? (
-        <>
-          <Loader2 className="spin" size={16} />
-          {pendingLabel ?? "Chargement..."}
-        </>
-      ) : (
-        children
-      )}
-    </button>
-  );
-}
+import { loginAction, logoutAction } from "@/app/actions";
+import type { UserRole } from "@/lib/exam-data";
 
 type LoginState = { error: string | null };
 const initialLoginState: LoginState = { error: null };
@@ -49,7 +16,13 @@ async function loginFormAction(
   return loginAction(formData);
 }
 
-export function UserPicker({ pseudo }: { pseudo: string | null }) {
+export function UserPicker({
+  pseudo,
+  role,
+}: {
+  pseudo: string | null;
+  role?: UserRole;
+}) {
   const [state, formAction, pending] = useActionState(
     loginFormAction,
     initialLoginState,
@@ -60,7 +33,7 @@ export function UserPicker({ pseudo }: { pseudo: string | null }) {
       <div className="user-picker">
         <label className="user-picker-label" htmlFor="pseudo-input">
           <LogIn size={16} />
-          <span>Connecte-toi ou cree un compte</span>
+          <span>Connecte-toi ou crée un compte</span>
         </label>
         <form action={formAction} className="user-picker-form">
           <input
@@ -99,73 +72,30 @@ export function UserPicker({ pseudo }: { pseudo: string | null }) {
             {state.error}
           </p>
         ) : null}
-        <div className="user-picker-links">
-          <Link className="user-picker-link" href="/users">
-            <Users size={14} />
-            Voir les pseudos existants
-          </Link>
-          <Link className="user-picker-link" href="/questions">
-            <BookOpen size={14} />
-            Editer les questions
-          </Link>
-        </div>
       </div>
     );
   }
 
   return (
     <div className="user-picker user-picker--active">
-      <div className="user-picker-header">
-        <div className="user-picker-identity">
-          <UserIcon size={16} />
-          <span>
-            Connecte en tant que <strong>{pseudo}</strong>
-          </span>
-        </div>
-        <div className="user-picker-links">
-          <Link
-            className="user-picker-link"
-            href={`/users/${encodeURIComponent(pseudo)}`}
-          >
-            Mes sessions
-          </Link>
-          <Link className="user-picker-link" href="/questions">
-            Editer les questions
-          </Link>
-          <form action={logoutAction}>
-            <button
-              className="user-picker-link user-picker-link--button"
-              type="submit"
-            >
-              <LogOut size={12} />
-              Se deconnecter
-            </button>
-          </form>
-        </div>
+      <div className="user-picker-identity">
+        <UserIcon size={16} />
+        <span>
+          Connecté en tant que <strong>{pseudo}</strong>
+        </span>
+        {role ? (
+          <span className={`role-pill role-pill--${role}`}>{role}</span>
+        ) : null}
       </div>
-
-      <div className="user-picker-actions">
-        <form action={startExamAction}>
-          <input name="mode" type="hidden" value="timed" />
-          <SubmitButton
-            className="primary-button"
-            pendingLabel="Creation de l'exam..."
-          >
-            Lancer l&apos;exam chronometre
-            <ArrowRight size={16} />
-          </SubmitButton>
-        </form>
-
-        <form action={startExamAction}>
-          <input name="mode" type="hidden" value="review" />
-          <SubmitButton
-            className="secondary-button"
-            pendingLabel="Creation..."
-          >
-            Ouvrir le mode review
-          </SubmitButton>
-        </form>
-      </div>
+      <form action={logoutAction}>
+        <button
+          className="user-picker-link user-picker-link--button"
+          type="submit"
+        >
+          <LogOut size={12} />
+          Se déconnecter
+        </button>
+      </form>
     </div>
   );
 }

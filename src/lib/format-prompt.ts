@@ -15,12 +15,15 @@ export function splitPromptParagraphs(prompt: string): string[] {
   if (lastQuestionMark <= 0) return [trimmed];
 
   // Walk back from the question mark to find the start of the question sentence:
-  // the position right after the previous ". " (or "! ", "? "), provided the
-  // following text starts with a question word.
+  // the position right after the previous ". " (or "! ", "? ", ": "), provided
+  // the following text starts with a question word.
   for (let i = lastQuestionMark - 1; i >= 1; i--) {
     const ch = trimmed[i];
     const next = trimmed[i + 1];
-    if ((ch === "." || ch === "!" || ch === "?") && next === " ") {
+    if (
+      (ch === "." || ch === "!" || ch === "?" || ch === ":") &&
+      next === " "
+    ) {
       const candidate = trimmed.slice(i + 2);
       if (QUESTION_STARTERS.test(candidate)) {
         const scenario = trimmed.slice(0, i + 1).trim();

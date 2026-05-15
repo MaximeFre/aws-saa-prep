@@ -1,20 +1,19 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
-import { QuestionEditor } from "@/components/question-editor";
-import { getQuestionDetail } from "@/lib/exam-data";
+import { getCurrentUser } from "@/lib/auth";
+import { isAdminRole } from "@/lib/exam-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function QuestionDetailPage({
+export default async function QuestionRedirect({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const questionId = Number.parseInt(id, 10);
-  if (!Number.isFinite(questionId)) notFound();
-  const question = await getQuestionDetail(questionId);
-  if (!question) notFound();
-
-  return <QuestionEditor question={question} />;
+  const user = await getCurrentUser();
+  if (user && isAdminRole(user.role)) {
+    redirect(`/admin/questions/${id}`);
+  }
+  redirect("/");
 }

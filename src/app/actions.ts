@@ -9,8 +9,12 @@ import {
   destroyAuthSession,
   getCurrentUser,
   loginOrRegister,
+  requireAdmin,
+  requireMember,
 } from "@/lib/auth";
 import {
+  ALL_ROLES,
+  countAdmins,
   createExamSession,
   createQuizSession,
   deleteExamSession,
@@ -18,19 +22,18 @@ import {
   getExamSessionOwner,
   QuizCreationError,
   saveSessionProgress,
+  setUserRole,
   updateQuestion,
   updateQuestionExplanation,
   type ExamMode,
   type QuestionUpdatePayload,
+  type UserRole,
 } from "@/lib/exam-data";
 
 export async function startExamAction(formData: FormData): Promise<void> {
   const rawMode = formData.get("mode");
   const mode: ExamMode = rawMode === "review" ? "review" : "timed";
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/");
-  }
+  const user = await requireMember();
   const session = await createExamSession(mode, user.id);
 
   redirect(`/exam/${session.id}`);
@@ -42,10 +45,7 @@ export async function startQuizAction(formData: FormData): Promise<void> {
   if (!Number.isFinite(cheatsheetId) || cheatsheetId <= 0) {
     redirect("/cheatsheets");
   }
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/");
-  }
+  const user = await requireMember();
   const slug = String(formData.get("cheatsheetSlug") ?? "");
   let session: { id: string };
   try {
@@ -57,6 +57,29 @@ export async function startQuizAction(formData: FormData): Promise<void> {
     throw error;
   }
   redirect(`/quiz/${session.id}`);
+}
+
+export async function setUserRoleAction(
+  formData: FormData,
+): Promise<{ error: string | null }> {
+  const admin = await requireAdmin();
+  const targetId = Number(formData.get("userId"));
+  const role = String(formData.get("role")) as UserRole;
+  if (!Number.isFinite(targetId) || targetId <= 0) {
+    return { error: "Utilisateur invalide." };
+  }
+  if (!ALL_ROLES.includes(role)) {
+    return { error: "Rôle invalide." };
+  }
+  if (targetId === admin.id && role !== "admin") {
+    const adminCount = await countAdmins();
+    if (adminCount <= 1) {
+      return { error: "Impossible de te rétrograder, tu es le seul admin." };
+    }
+  }
+  await setUserRole(targetId, role);
+  revalidatePath("/admin/users");
+  return { error: null };
 }
 
 export async function loginAction(formData: FormData): Promise<{
@@ -81,6 +104,7 @@ export async function saveExplanationAction(
   questionId: number,
   explanation: string,
 ): Promise<void> {
+  await requireAdmin();
   await updateQuestionExplanation(questionId, explanation);
 }
 
@@ -88,9 +112,10 @@ export async function updateQuestionAction(
   questionId: number,
   payload: QuestionUpdatePayload,
 ): Promise<void> {
+  await requireAdmin();
   await updateQuestion(questionId, payload);
-  revalidatePath(`/questions/${questionId}`);
-  revalidatePath("/questions");
+  revalidatePath(`/admin/questions/${questionId}`);
+  revalidatePath("/admin/questions");
 }
 
 export async function saveProgressAction(

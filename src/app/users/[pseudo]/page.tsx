@@ -1,14 +1,18 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Clock3, Gauge, Trophy } from "lucide-react";
 
 import { SessionRow } from "@/components/session-row";
+import { getCurrentUser } from "@/lib/auth";
 import { categorySlug } from "@/lib/cheatsheet-style";
 import {
   getUserByPseudo,
   getUserSessions,
   getUserStats,
+  isAdminRole,
+  isMemberRole,
   listCheatsheetMastery,
+  normalizePseudoKey,
 } from "@/lib/exam-data";
 
 export const dynamic = "force-dynamic";
@@ -44,8 +48,17 @@ export default async function UserDetailPage({
 }) {
   const { pseudo } = await params;
   const decoded = decodeURIComponent(pseudo);
+  const viewer = await getCurrentUser();
+  if (!viewer || !isMemberRole(viewer.role)) {
+    redirect("/");
+  }
   const user = await getUserByPseudo(decoded);
   if (!user) notFound();
+  const isSelf =
+    normalizePseudoKey(viewer.pseudo) === normalizePseudoKey(user.pseudo);
+  if (!isSelf && !isAdminRole(viewer.role)) {
+    redirect("/");
+  }
   const [stats, sessions, mastery] = await Promise.all([
     getUserStats(user.id),
     getUserSessions(user.id),

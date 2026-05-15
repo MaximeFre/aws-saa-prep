@@ -103,7 +103,7 @@ export function QuestionEditor({ question }: { question: QuestionDetail }) {
             l&apos;explication. Tes changements ecrasent la source en base.
           </p>
         </div>
-        <Link className="secondary-button" href="/questions">
+        <Link className="secondary-button" href="/admin/questions">
           <ArrowLeft size={16} />
           Liste
         </Link>

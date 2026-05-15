@@ -1,14 +1,79 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  Clock3,
+  Hourglass,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Timer,
+} from "lucide-react";
 
+import { startExamAction } from "@/app/actions";
 import { UserPicker } from "@/components/user-picker";
 import { getCurrentUser } from "@/lib/auth";
+import {
+  getUserStats,
+  isAdminRole,
+  listCheatsheetMastery,
+} from "@/lib/exam-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
 
+  if (!user) {
+    return <PublicLanding />;
+  }
+
+  if (user.role === "free") {
+    return <FreeLanding pseudo={user.pseudo} />;
+  }
+
+  return (
+    <MemberDashboard
+      isAdmin={isAdminRole(user.role)}
+      pseudo={user.pseudo}
+      role={user.role}
+      userId={user.id}
+    />
+  );
+}
+
+function MarketingSections() {
+  return (
+    <section className="feature-grid">
+      <article className="paper-card feature-card">
+        <Timer size={20} />
+        <h2>Exam mode</h2>
+        <p>
+          65 questions chronométrées en 2 h 10, score final calculé sur 1000.
+          Reprends une session interrompue à tout moment.
+        </p>
+      </article>
+      <article className="paper-card feature-card">
+        <BookOpen size={20} />
+        <h2>Quiz par cheatsheet</h2>
+        <p>
+          Chaque fiche service propose un quiz ciblé sur ses concepts. Idéal
+          pour bosser un thème spécifique avant la session blanche.
+        </p>
+      </article>
+      <article className="paper-card feature-card">
+        <Target size={20} />
+        <h2>Maîtrise par thématique</h2>
+        <p>
+          Le suivi calcule ton taux de réussite par cheatsheet en agrégeant
+          tes dernières réponses — tu sais où concentrer ta révision.
+        </p>
+      </article>
+    </section>
+  );
+}
+
+function PublicLanding() {
   return (
     <main className="page-shell">
       <section className="hero-panel">
@@ -19,14 +84,11 @@ export default async function HomePage() {
               Passe un vrai faux examen, dans une interface claire et sans bruit.
             </h1>
             <p className="hero-description">
-              Les questions restent en anglais comme dans la source d&apos;origine.
-              L&apos;interface, le suivi de progression, le timer et le score final
-              sont pensés pour s&apos;entrainer vite.
+              684 questions, 83 cheatsheets, suivi de compréhension par
+              thématique. Connecte-toi pour accéder à l&apos;app.
             </p>
-
-            <UserPicker pseudo={user?.pseudo ?? null} />
+            <UserPicker pseudo={null} />
           </div>
-
           <div className="hero-note">
             <div className="note-block">
               <span className="note-label">Format</span>
@@ -47,51 +109,160 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="paper-card home-cheatsheet-card">
-        <div>
-          <p className="eyebrow">Cheatsheets</p>
-          <h2>Fiches de revision par service AWS</h2>
+      <MarketingSections />
+    </main>
+  );
+}
+
+function FreeLanding({ pseudo }: { pseudo: string }) {
+  return (
+    <main className="page-shell">
+      <section className="paper-card free-banner">
+        <Hourglass size={20} />
+        <div className="free-banner-text">
+          <strong>
+            Salut {pseudo}, ton compte est en attente d&apos;activation.
+          </strong>
           <p>
-            53 cheatsheets classees par categorie (Compute, Storage, Networking,
-            Security, etc.) pour reviser en dehors des sessions d&apos;examen.
+            Un administrateur doit te débloquer l&apos;accès aux questions et
+            aux cheatsheets. Reviens plus tard ou contacte-le.
           </p>
         </div>
-        <Link className="primary-button" href="/cheatsheets">
-          <Sparkles size={16} />
-          Voir les cheatsheets
-          <ArrowRight size={16} />
+        <UserPicker pseudo={pseudo} role="free" />
+      </section>
+
+      <MarketingSections />
+    </main>
+  );
+}
+
+async function MemberDashboard({
+  userId,
+  pseudo,
+  role,
+  isAdmin,
+}: {
+  userId: number;
+  pseudo: string;
+  role: "member" | "admin";
+  isAdmin: boolean;
+}) {
+  const [stats, mastery] = await Promise.all([
+    getUserStats(userId),
+    listCheatsheetMastery(userId),
+  ]);
+  const sortedMastery = [...mastery].sort(
+    (a, b) => (b.masteryRate ?? 0) - (a.masteryRate ?? 0),
+  );
+  const top = sortedMastery.slice(0, 3);
+  const bottom = sortedMastery.slice(-3).reverse();
+
+  return (
+    <main className="page-shell">
+      <section className="paper-card dashboard-hero">
+        <div>
+          <p className="eyebrow">Bonjour</p>
+          <h1 className="users-title">{pseudo}</h1>
+          <p className="users-subtitle">
+            {stats.sessionsFinished} session
+            {stats.sessionsFinished > 1 ? "s" : ""} terminée
+            {stats.sessionsFinished > 1 ? "s" : ""} · {stats.sessionsInProgress}{" "}
+            en cours
+            {stats.avgScore !== null
+              ? ` · moyenne ${Math.round(stats.avgScore)} / 1000`
+              : ""}
+          </p>
+        </div>
+        <div className="dashboard-hero-actions">
+          <UserPicker pseudo={pseudo} role={role} />
+          {isAdmin ? (
+            <Link className="primary-button" href="/admin">
+              <ShieldCheck size={16} />
+              Panel admin
+            </Link>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="dashboard-quick-grid">
+        <form action={startExamAction}>
+          <input name="mode" type="hidden" value="timed" />
+          <button className="paper-card quick-card" type="submit">
+            <Timer size={20} />
+            <strong>Exam timed</strong>
+            <span>65 questions · 2 h 10</span>
+          </button>
+        </form>
+        <form action={startExamAction}>
+          <input name="mode" type="hidden" value="review" />
+          <button className="paper-card quick-card" type="submit">
+            <Sparkles size={20} />
+            <strong>Mode review</strong>
+            <span>Feedback immédiat</span>
+          </button>
+        </form>
+        <Link className="paper-card quick-card" href="/cheatsheets">
+          <BookOpen size={20} />
+          <strong>Cheatsheets</strong>
+          <span>83 fiches · quiz par fiche</span>
+        </Link>
+        <Link
+          className="paper-card quick-card"
+          href={`/users/${encodeURIComponent(pseudo)}`}
+        >
+          <Clock3 size={20} />
+          <strong>Mes stats</strong>
+          <span>Sessions et compréhension</span>
         </Link>
       </section>
 
-      <section className="mode-grid">
-        <article className="paper-card mode-card">
-          <p className="eyebrow">Timed</p>
-          <h2 className="mode-title">Simulation d&apos;exam</h2>
-          <p className="mode-description">
-            Tu avances librement parmi les 65 questions, le chrono tourne, et le
-            score final est calcule a la fin de la session.
-          </p>
-          <ul className="mode-list">
-            <li>timer persistant sur la session</li>
-            <li>navigation question par question</li>
-            <li>revue des erreurs a la fin</li>
-          </ul>
-        </article>
-
-        <article className="paper-card mode-card">
-          <p className="eyebrow">Review</p>
-          <h2 className="mode-title">Apprentissage immediat</h2>
-          <p className="mode-description">
-            Tu valides chaque reponse au fil de l&apos;eau et l&apos;explication
-            apparait juste apres. Pratique pour memoriser les patterns AWS.
-          </p>
-          <ul className="mode-list">
-            <li>pas de limite de temps</li>
-            <li>explication apres validation</li>
-            <li>score final sur 1000 aussi</li>
-          </ul>
-        </article>
-      </section>
+      {top.length > 0 ? (
+        <section className="paper-card dashboard-mastery">
+          <div className="dashboard-mastery-head">
+            <h2>Compréhension par thématique</h2>
+            <Link className="secondary-button" href={`/users/${encodeURIComponent(pseudo)}`}>
+              Tout voir
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+          <div className="dashboard-mastery-cols">
+            <div>
+              <p className="eyebrow">À l&apos;aise</p>
+              <ul>
+                {top.map((row) => (
+                  <li key={row.cheatsheetId}>
+                    <Link href={`/cheatsheets/${row.slug}`}>
+                      {row.title}
+                      <span>
+                        {row.masteryRate !== null
+                          ? `${Math.round(row.masteryRate)}%`
+                          : "—"}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="eyebrow">À retravailler</p>
+              <ul>
+                {bottom.map((row) => (
+                  <li key={row.cheatsheetId}>
+                    <Link href={`/cheatsheets/${row.slug}`}>
+                      {row.title}
+                      <span>
+                        {row.masteryRate !== null
+                          ? `${Math.round(row.masteryRate)}%`
+                          : "—"}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

@@ -79,6 +79,22 @@ export async function ensureMigrations(): Promise<void> {
         "ALTER TABLE exam_sessions ADD COLUMN cheatsheet_id INTEGER REFERENCES cheatsheets(id) ON DELETE SET NULL",
       );
     }
+    if (!userCols.some((c) => c.name === "role")) {
+      await client.execute(
+        "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'free'",
+      );
+    }
+    await client.execute(
+      "UPDATE users SET role = 'admin' WHERE pseudo_key = 'max' AND role != 'admin'",
+    );
+    const questionCols = (
+      await client.execute("PRAGMA table_info(questions)")
+    ).rows;
+    if (!questionCols.some((c) => c.name === "extra_content")) {
+      await client.execute(
+        "ALTER TABLE questions ADD COLUMN extra_content TEXT",
+      );
+    }
   })();
   return g.__awsExamLibsqlReady;
 }
