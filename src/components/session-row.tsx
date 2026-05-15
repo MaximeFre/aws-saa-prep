@@ -24,6 +24,18 @@ export function SessionRow({
   const answered = Math.min(session.answeredCount, total);
   const progressPct = Math.round((answered / total) * 100);
   const currentQuestion = Math.min(session.currentIndex + 1, total);
+  const href =
+    session.kind === "quiz" ? `/quiz/${session.id}` : `/exam/${session.id}`;
+  const modeLabel =
+    session.kind === "quiz"
+      ? session.cheatsheetTitle
+        ? `quiz · ${session.cheatsheetTitle}`
+        : "quiz"
+      : session.mode;
+  const modePillClass =
+    session.kind === "quiz"
+      ? "session-mode-pill session-mode-pill--quiz"
+      : `session-mode-pill session-mode-pill--${session.mode}`;
 
   function onDelete() {
     if (
@@ -46,16 +58,12 @@ export function SessionRow({
     <div className="user-sessions-row user-sessions-row--link">
       <Link
         className="user-sessions-row__link"
-        href={`/exam/${session.id}`}
+        href={href}
         aria-label={`Ouvrir la session du ${formattedDate}`}
       >
         <span>{formattedDate}</span>
         <span>
-          <span
-            className={`session-mode-pill session-mode-pill--${session.mode}`}
-          >
-            {session.mode}
-          </span>
+          <span className={modePillClass}>{modeLabel}</span>
         </span>
         <span>{formattedDuration}</span>
         <span>
@@ -77,6 +85,8 @@ export function SessionRow({
                 />
               </span>
             </span>
+          ) : session.kind === "quiz" && session.correctCount !== null ? (
+            `${session.correctCount} / ${total}`
           ) : session.score !== null ? (
             `${session.score} / 1000`
           ) : (

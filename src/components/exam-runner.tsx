@@ -3,6 +3,8 @@
 import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowLeft,
+  BookOpen,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -339,23 +341,44 @@ export function ExamRunner({
     });
   };
 
+  const isQuiz = session.kind === "quiz";
+  const masteryPct =
+    session.questions.length > 0
+      ? Math.round((correctCount / session.questions.length) * 100)
+      : 0;
+
   if (runnerState.finished) {
     return (
       <main className="page-shell exam-shell">
         <section className="paper-card results-hero">
           <div>
-            <p className="eyebrow">Session terminee</p>
-            <h1 className="results-title">{scaledScore} / 1000</h1>
+            <p className="eyebrow">
+              {isQuiz
+                ? `Quiz terminé${session.cheatsheetTitle ? ` · ${session.cheatsheetTitle}` : ""}`
+                : "Session terminee"}
+            </p>
+            <h1 className="results-title">
+              {isQuiz
+                ? `${correctCount} / ${session.questions.length}`
+                : `${scaledScore} / 1000`}
+            </h1>
             <p className="results-subtitle">
-              {correctCount} bonnes reponses sur {session.questions.length}.{" "}
-              {scaledScore >= 720 ? "Seuil de validation atteint." : "Encore un tour et ca passe."}
+              {isQuiz
+                ? `${masteryPct}% de bonnes réponses sur ce quiz.`
+                : `${correctCount} bonnes reponses sur ${session.questions.length}. ${scaledScore >= 720 ? "Seuil de validation atteint." : "Encore un tour et ca passe."}`}
             </p>
           </div>
 
           <div className="results-metrics">
             <div>
               <span>Mode</span>
-              <strong>{session.mode === "timed" ? "Timed" : "Review"}</strong>
+              <strong>
+                {isQuiz
+                  ? "Quiz"
+                  : session.mode === "timed"
+                    ? "Timed"
+                    : "Review"}
+              </strong>
             </div>
             <div>
               <span>Questions repondues</span>
@@ -373,10 +396,20 @@ export function ExamRunner({
             Les explications ci-dessous montrent en priorite les questions
             incorrectes ou non repondues.
           </p>
-          <Link className="secondary-button" href="/">
-            <Home size={16} />
-            Revenir a l&apos;accueil
-          </Link>
+          {isQuiz && session.cheatsheetSlug ? (
+            <Link
+              className="secondary-button"
+              href={`/cheatsheets/${session.cheatsheetSlug}`}
+            >
+              <ArrowLeft size={16} />
+              Retour à la cheatsheet
+            </Link>
+          ) : (
+            <Link className="secondary-button" href="/">
+              <Home size={16} />
+              Revenir a l&apos;accueil
+            </Link>
+          )}
         </section>
 
         <section className="results-list">
@@ -424,7 +457,11 @@ export function ExamRunner({
       <section className="paper-card exam-topbar">
         <div className="topbar-copy">
           <p className="eyebrow">
-            {session.mode === "timed" ? "Timed exam" : "Review mode"}
+            {isQuiz
+              ? `Quiz${session.cheatsheetTitle ? ` · ${session.cheatsheetTitle}` : ""}`
+              : session.mode === "timed"
+                ? "Timed exam"
+                : "Review mode"}
           </p>
           <h1 className="exam-title">
             Question {runnerState.currentIndex + 1} / {session.questions.length}
@@ -435,7 +472,15 @@ export function ExamRunner({
         </div>
 
         <div className="topbar-side">
-          {session.mode === "timed" && remainingSeconds !== null ? (
+          {isQuiz && session.cheatsheetSlug ? (
+            <Link
+              className="timer-pill timer-pill--soft"
+              href={`/cheatsheets/${session.cheatsheetSlug}`}
+            >
+              <BookOpen size={16} />
+              <span>Cheatsheet</span>
+            </Link>
+          ) : session.mode === "timed" && remainingSeconds !== null ? (
             <div className="timer-pill">
               <Clock3 size={16} />
               <span>{formatCountdown(remainingSeconds)}</span>
@@ -463,7 +508,6 @@ export function ExamRunner({
           >
             <div className="sidebar-head">
               <h2>Navigation</h2>
-              <p>Saute directement a une question.</p>
             </div>
             <ChevronDown
               className={`sidebar-chevron ${
@@ -637,7 +681,9 @@ export function ExamRunner({
               ) : (
                 <button className="primary-button" onClick={nextQuestion} type="button">
                   {runnerState.currentIndex === session.questions.length - 1
-                    ? "Voir le score"
+                    ? isQuiz
+                      ? "Voir le résultat"
+                      : "Voir le score"
                     : "Question suivante"}
                   <ChevronRight size={16} />
                 </button>

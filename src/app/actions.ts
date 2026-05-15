@@ -12,9 +12,11 @@ import {
 } from "@/lib/auth";
 import {
   createExamSession,
+  createQuizSession,
   deleteExamSession,
   finalizeExamSession,
   getExamSessionOwner,
+  QuizCreationError,
   saveSessionProgress,
   updateQuestion,
   updateQuestionExplanation,
@@ -32,6 +34,29 @@ export async function startExamAction(formData: FormData): Promise<void> {
   const session = await createExamSession(mode, user.id);
 
   redirect(`/exam/${session.id}`);
+}
+
+export async function startQuizAction(formData: FormData): Promise<void> {
+  const rawId = formData.get("cheatsheetId");
+  const cheatsheetId = Number(rawId);
+  if (!Number.isFinite(cheatsheetId) || cheatsheetId <= 0) {
+    redirect("/cheatsheets");
+  }
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect("/");
+  }
+  const slug = String(formData.get("cheatsheetSlug") ?? "");
+  let session: { id: string };
+  try {
+    session = await createQuizSession(user.id, cheatsheetId);
+  } catch (error) {
+    if (error instanceof QuizCreationError) {
+      redirect(slug ? `/cheatsheets/${slug}?quiz=empty` : "/cheatsheets");
+    }
+    throw error;
+  }
+  redirect(`/quiz/${session.id}`);
 }
 
 export async function loginAction(formData: FormData): Promise<{

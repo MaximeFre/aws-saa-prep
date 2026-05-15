@@ -57,6 +57,28 @@ export async function ensureMigrations(): Promise<void> {
          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
        )`,
     );
+    await client.execute(
+      `CREATE TABLE IF NOT EXISTS question_cheatsheets (
+         question_id INTEGER NOT NULL,
+         cheatsheet_id INTEGER NOT NULL,
+         PRIMARY KEY(question_id, cheatsheet_id),
+         FOREIGN KEY(question_id) REFERENCES questions(id) ON DELETE CASCADE,
+         FOREIGN KEY(cheatsheet_id) REFERENCES cheatsheets(id) ON DELETE CASCADE
+       )`,
+    );
+    await client.execute(
+      "CREATE INDEX IF NOT EXISTS idx_question_cheatsheets_cheatsheet ON question_cheatsheets(cheatsheet_id)",
+    );
+    if (!sessionCols.some((c) => c.name === "kind")) {
+      await client.execute(
+        "ALTER TABLE exam_sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'exam'",
+      );
+    }
+    if (!sessionCols.some((c) => c.name === "cheatsheet_id")) {
+      await client.execute(
+        "ALTER TABLE exam_sessions ADD COLUMN cheatsheet_id INTEGER REFERENCES cheatsheets(id) ON DELETE SET NULL",
+      );
+    }
   })();
   return g.__awsExamLibsqlReady;
 }

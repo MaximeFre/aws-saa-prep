@@ -11,6 +11,7 @@ import {
 } from "./db";
 
 export type ExamMode = "timed" | "review";
+export type SessionKind = "exam" | "quiz";
 
 export type ExamOption = {
   label: string;
@@ -31,6 +32,10 @@ export type ExamQuestion = {
 export type ExamSession = {
   id: string;
   mode: ExamMode;
+  kind: SessionKind;
+  cheatsheetId: number | null;
+  cheatsheetSlug: string | null;
+  cheatsheetTitle: string | null;
   totalQuestions: number;
   timeLimitSeconds: number | null;
   startedAt: string;
@@ -45,6 +50,7 @@ export type DatasetStats = {
 
 const QUESTIONS_PER_EXAM = 65;
 const TIMED_EXAM_SECONDS = 2 * 60 * 60 + 10 * 60;
+export const QUIZ_MAX_QUESTIONS = 20;
 
 export function normalizePseudoKey(pseudo: string): string {
   return pseudo.trim().toLowerCase();
@@ -212,6 +218,179 @@ export async function getCheatsheetBySlug(
   };
 }
 
+export async function getCheatsheetById(
+  id: number,
+): Promise<{ id: number; slug: string; title: string } | null> {
+  const db = await getDb();
+  const r = await db.execute({
+    sql: "SELECT id, slug, title FROM cheatsheets WHERE id = ?",
+    args: [id],
+  });
+  const row = r.rows[0];
+  if (!row) return null;
+  return {
+    id: asNumber(row.id),
+    slug: asString(row.slug),
+    title: asString(row.title),
+  };
+}
+
+export async function countQuestionsForCheatsheet(
+  cheatsheetId: number,
+): Promise<number> {
+  const db = await getDb();
+  const r = await db.execute({
+    sql: "SELECT COUNT(*) AS n FROM question_cheatsheets WHERE cheatsheet_id = ?",
+    args: [cheatsheetId],
+  });
+  return asNumber(r.rows[0]?.n);
+}
+
+export async function listCheatsheetsForQuestion(
+  questionId: number,
+): Promise<Array<{ id: number; slug: string; title: string }>> {
+  const db = await getDb();
+  const r = await db.execute({
+    sql: `SELECT c.id, c.slug, c.title
+          FROM question_cheatsheets qc
+          JOIN cheatsheets c ON c.id = qc.cheatsheet_id
+          WHERE qc.question_id = ?
+          ORDER BY c.category ASC, c.title ASC`,
+    args: [questionId],
+  });
+  return r.rows.map((row) => ({
+    id: asNumber(row.id),
+    slug: asString(row.slug),
+    title: asString(row.title),
+  }));
+}
+
+export async function linkQuestionToCheatsheet(
+  questionId: number,
+  cheatsheetId: number,
+): Promise<void> {
+  const db = await getDb();
+  await db.execute({
+    sql: `INSERT INTO question_cheatsheets (question_id, cheatsheet_id)
+          VALUES (?, ?) ON CONFLICT DO NOTHING`,
+    args: [questionId, cheatsheetId],
+  });
+}
+
+export async function unlinkQuestionFromCheatsheet(
+  questionId: number,
+  cheatsheetId: number,
+): Promise<void> {
+  const db = await getDb();
+  await db.execute({
+    sql: "DELETE FROM question_cheatsheets WHERE question_id = ? AND cheatsheet_id = ?",
+    args: [questionId, cheatsheetId],
+  });
+}
+
+export type CheatsheetMastery = {
+  cheatsheetId: number;
+  total: number;
+  attempted: number;
+  mastered: number;
+  masteryRate: number | null;
+};
+
+export async function getCheatsheetMastery(
+  userId: number,
+  cheatsheetId: number,
+): Promise<CheatsheetMastery> {
+  const db = await getDb();
+  const r = await db.execute({
+    sql: `WITH user_answers AS (
+            SELECT esa.question_id, esa.is_correct,
+                   ROW_NUMBER() OVER (
+                     PARTITION BY esa.question_id
+                     ORDER BY es.started_at DESC
+                   ) AS rn
+            FROM exam_session_answers esa
+            JOIN exam_sessions es ON es.id = esa.session_id
+            WHERE es.user_id = ?
+          ),
+          latest AS (
+            SELECT question_id, is_correct FROM user_answers WHERE rn = 1
+          )
+          SELECT
+            COUNT(qc.question_id) AS total,
+            COUNT(l.question_id) AS attempted,
+            SUM(CASE WHEN l.is_correct = 1 THEN 1 ELSE 0 END) AS mastered
+          FROM question_cheatsheets qc
+          LEFT JOIN latest l ON l.question_id = qc.question_id
+          WHERE qc.cheatsheet_id = ?`,
+    args: [userId, cheatsheetId],
+  });
+  const row = r.rows[0];
+  const total = asNumber(row?.total);
+  const attempted = asNumber(row?.attempted);
+  const mastered = asNumber(row?.mastered);
+  return {
+    cheatsheetId,
+    total,
+    attempted,
+    mastered,
+    masteryRate: total > 0 ? (mastered / total) * 100 : null,
+  };
+}
+
+export type CheatsheetMasteryRow = CheatsheetMastery & {
+  slug: string;
+  title: string;
+  category: string;
+  priority: string;
+};
+
+export async function listCheatsheetMastery(
+  userId: number,
+): Promise<CheatsheetMasteryRow[]> {
+  const db = await getDb();
+  const r = await db.execute({
+    sql: `WITH user_answers AS (
+            SELECT esa.question_id, esa.is_correct,
+                   ROW_NUMBER() OVER (
+                     PARTITION BY esa.question_id
+                     ORDER BY es.started_at DESC
+                   ) AS rn
+            FROM exam_session_answers esa
+            JOIN exam_sessions es ON es.id = esa.session_id
+            WHERE es.user_id = ?
+          ),
+          latest AS (
+            SELECT question_id, is_correct FROM user_answers WHERE rn = 1
+          )
+          SELECT
+            c.id, c.slug, c.title, c.category, c.priority,
+            COUNT(qc.question_id) AS total,
+            COUNT(l.question_id) AS attempted,
+            SUM(CASE WHEN l.is_correct = 1 THEN 1 ELSE 0 END) AS mastered
+          FROM cheatsheets c
+          JOIN question_cheatsheets qc ON qc.cheatsheet_id = c.id
+          LEFT JOIN latest l ON l.question_id = qc.question_id
+          GROUP BY c.id
+          ORDER BY c.category ASC, c.title ASC`,
+    args: [userId],
+  });
+  return r.rows.map((row) => {
+    const total = asNumber(row.total);
+    const mastered = asNumber(row.mastered);
+    return {
+      cheatsheetId: asNumber(row.id),
+      slug: asString(row.slug),
+      title: asString(row.title),
+      category: asString(row.category),
+      priority: asString(row.priority),
+      total,
+      attempted: asNumber(row.attempted),
+      mastered,
+      masteryRate: total > 0 ? (mastered / total) * 100 : null,
+    };
+  });
+}
+
 export type QuestionUpdatePayload = {
   prompt: string;
   selectionMode: "single" | "multiple";
@@ -331,6 +510,10 @@ export async function listUsersWithStats(): Promise<
 export type UserSessionRow = {
   id: string;
   mode: ExamMode;
+  kind: SessionKind;
+  cheatsheetId: number | null;
+  cheatsheetSlug: string | null;
+  cheatsheetTitle: string | null;
   startedAt: string;
   finishedAt: string | null;
   correctCount: number | null;
@@ -343,19 +526,29 @@ export type UserSessionRow = {
 export async function getUserSessions(userId: number): Promise<UserSessionRow[]> {
   const db = await getDb();
   const r = await db.execute({
-    sql: `SELECT s.id, s.mode, s.started_at AS startedAt, s.finished_at AS finishedAt,
+    sql: `SELECT s.id, s.mode, s.kind,
+                 s.cheatsheet_id AS cheatsheetId,
+                 c.slug AS cheatsheetSlug,
+                 c.title AS cheatsheetTitle,
+                 s.started_at AS startedAt, s.finished_at AS finishedAt,
                  s.correct_count AS correctCount, s.score,
                  s.total_questions AS totalQuestions,
                  s.current_index AS currentIndex,
                  (SELECT COUNT(*) FROM exam_session_answers a
                   WHERE a.session_id = s.id) AS answeredCount
-          FROM exam_sessions s WHERE s.user_id = ?
+          FROM exam_sessions s
+          LEFT JOIN cheatsheets c ON c.id = s.cheatsheet_id
+          WHERE s.user_id = ?
           ORDER BY s.started_at DESC`,
     args: [userId],
   });
   return r.rows.map((row) => ({
     id: asString(row.id),
     mode: asString(row.mode) as ExamMode,
+    kind: (asString(row.kind) || "exam") as SessionKind,
+    cheatsheetId: asNullableNumber(row.cheatsheetId),
+    cheatsheetSlug: asNullableString(row.cheatsheetSlug),
+    cheatsheetTitle: asNullableString(row.cheatsheetTitle),
     startedAt: asString(row.startedAt),
     finishedAt: asNullableString(row.finishedAt),
     correctCount: asNullableNumber(row.correctCount),
@@ -573,8 +766,9 @@ export async function createExamSession(
   }
   const statements = [
     {
-      sql: `INSERT INTO exam_sessions (id, mode, total_questions, time_limit_seconds, started_at, user_id)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO exam_sessions
+              (id, mode, kind, cheatsheet_id, total_questions, time_limit_seconds, started_at, user_id)
+            VALUES (?, ?, 'exam', NULL, ?, ?, ?, ?)`,
       args: [
         sessionId,
         mode,
@@ -594,13 +788,64 @@ export async function createExamSession(
   return { id: sessionId };
 }
 
+export class QuizCreationError extends Error {
+  code: "no-questions";
+  constructor(code: "no-questions", message: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
+export async function createQuizSession(
+  userId: number,
+  cheatsheetId: number,
+): Promise<{ id: string }> {
+  const db = await getDb();
+  const qIds = await db.execute({
+    sql: `SELECT q.id FROM questions q
+          JOIN question_cheatsheets qc ON qc.question_id = q.id
+          WHERE qc.cheatsheet_id = ?
+          ORDER BY RANDOM() LIMIT ?`,
+    args: [cheatsheetId, QUIZ_MAX_QUESTIONS],
+  });
+  if (qIds.rows.length === 0) {
+    throw new QuizCreationError(
+      "no-questions",
+      "Aucune question n'est liée à cette cheatsheet.",
+    );
+  }
+  const sessionId = randomUUID();
+  const startedAt = new Date().toISOString();
+  const statements = [
+    {
+      sql: `INSERT INTO exam_sessions
+              (id, mode, kind, cheatsheet_id, total_questions, time_limit_seconds, started_at, user_id)
+            VALUES (?, 'review', 'quiz', ?, ?, NULL, ?, ?)`,
+      args: [sessionId, cheatsheetId, qIds.rows.length, startedAt, userId],
+    },
+    ...qIds.rows.map((row, i) => ({
+      sql: `INSERT INTO exam_session_questions (session_id, position, question_id)
+            VALUES (?, ?, ?)`,
+      args: [sessionId, i + 1, asNumber(row.id)],
+    })),
+  ];
+  await db.batch(statements, "write");
+  return { id: sessionId };
+}
+
 export async function getExamSession(
   sessionId: string,
 ): Promise<ExamSession | null> {
   const db = await getDb();
   const s = await db.execute({
-    sql: `SELECT id, mode, total_questions, time_limit_seconds, started_at
-          FROM exam_sessions WHERE id = ?`,
+    sql: `SELECT s.id, s.mode, s.kind,
+                 s.cheatsheet_id AS cheatsheetId,
+                 c.slug AS cheatsheetSlug,
+                 c.title AS cheatsheetTitle,
+                 s.total_questions, s.time_limit_seconds, s.started_at
+          FROM exam_sessions s
+          LEFT JOIN cheatsheets c ON c.id = s.cheatsheet_id
+          WHERE s.id = ?`,
     args: [sessionId],
   });
   const sessionRow = s.rows[0];
@@ -644,6 +889,10 @@ export async function getExamSession(
   return {
     id: asString(sessionRow.id),
     mode: asString(sessionRow.mode) as ExamMode,
+    kind: (asString(sessionRow.kind) || "exam") as SessionKind,
+    cheatsheetId: asNullableNumber(sessionRow.cheatsheetId),
+    cheatsheetSlug: asNullableString(sessionRow.cheatsheetSlug),
+    cheatsheetTitle: asNullableString(sessionRow.cheatsheetTitle),
     totalQuestions: asNumber(sessionRow.total_questions),
     timeLimitSeconds: asNullableNumber(sessionRow.time_limit_seconds),
     startedAt: asString(sessionRow.started_at),

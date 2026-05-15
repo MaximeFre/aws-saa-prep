@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Clock3, Gauge, Trophy } from "lucide-react";
 
 import { SessionRow } from "@/components/session-row";
+import { categorySlug } from "@/lib/cheatsheet-style";
 import {
   getUserByPseudo,
   getUserSessions,
   getUserStats,
+  listCheatsheetMastery,
 } from "@/lib/exam-data";
 
 export const dynamic = "force-dynamic";
@@ -44,9 +46,10 @@ export default async function UserDetailPage({
   const decoded = decodeURIComponent(pseudo);
   const user = await getUserByPseudo(decoded);
   if (!user) notFound();
-  const [stats, sessions] = await Promise.all([
+  const [stats, sessions, mastery] = await Promise.all([
     getUserStats(user.id),
     getUserSessions(user.id),
+    listCheatsheetMastery(user.id),
   ]);
 
   return (
@@ -114,6 +117,51 @@ export default async function UserDetailPage({
             <p className="stat-label">moyenne mode timed</p>
           </div>
         </article>
+      </section>
+
+      <section className="paper-card user-sessions-card">
+        <div className="user-sessions-head">
+          <h2>Compréhension par thématique</h2>
+          <p>Calculée sur la dernière réponse donnée à chaque question.</p>
+        </div>
+        {mastery.length === 0 ? (
+          <p className="users-subtitle">
+            Aucune question n&apos;est encore liée à une cheatsheet.
+          </p>
+        ) : (
+          <div className="cheatsheet-mastery-list">
+            {mastery.map((row) => {
+              const pct =
+                row.masteryRate !== null ? Math.round(row.masteryRate) : 0;
+              const catClass = categorySlug(row.category);
+              return (
+                <Link
+                  className="cheatsheet-mastery-row"
+                  href={`/cheatsheets/${row.slug}`}
+                  key={row.cheatsheetId}
+                >
+                  <div className="cheatsheet-mastery-meta">
+                    <span
+                      className={`cheatsheet-chip cheatsheet-chip--${catClass}`}
+                    >
+                      {row.category}
+                    </span>
+                    <strong>{row.title}</strong>
+                  </div>
+                  <div className="cheatsheet-mastery-bar">
+                    <span
+                      className="cheatsheet-mastery-bar-fill"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="cheatsheet-mastery-pct">
+                    {pct}% · {row.mastered}/{row.total}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section className="paper-card user-sessions-card">

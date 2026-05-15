@@ -10,7 +10,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function ExamSessionPage({
+export default async function QuizSessionPage({
   params,
 }: {
   params: Promise<{ sessionId: string }>;
@@ -30,8 +30,8 @@ export default async function ExamSessionPage({
     notFound();
   }
 
-  if (session.kind === "quiz") {
-    redirect(`/quiz/${sessionId}`);
+  if (session.kind !== "quiz") {
+    redirect(`/exam/${sessionId}`);
   }
 
   if (ownerId !== null && ownerId !== user.id) {

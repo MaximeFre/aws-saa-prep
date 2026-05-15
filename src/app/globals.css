@@ -1712,6 +1712,123 @@ button {
   border-color: rgba(15, 118, 110, 0.2);
 }
 
+.session-mode-pill--quiz {
+  background: rgba(168, 85, 247, 0.12);
+  color: #7e22ce;
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+.cheatsheet-quiz-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 24px 28px;
+  margin-bottom: 20px;
+}
+
+.cheatsheet-quiz-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 240px;
+}
+
+.cheatsheet-quiz-info h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.cheatsheet-quiz-meta {
+  margin: 0;
+  color: var(--ink-soft, #5a574f);
+  font-size: 0.92rem;
+}
+
+.cheatsheet-quiz-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+  font-size: 0.85rem;
+  width: fit-content;
+}
+
+.cheatsheet-mastery-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.cheatsheet-mastery-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(120px, 2fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px solid rgba(56, 52, 46, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.55);
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.cheatsheet-mastery-row:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(56, 52, 46, 0.18);
+}
+
+.cheatsheet-mastery-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cheatsheet-mastery-meta strong {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cheatsheet-mastery-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(56, 52, 46, 0.08);
+  overflow: hidden;
+}
+
+.cheatsheet-mastery-bar-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+  border-radius: 999px;
+}
+
+.cheatsheet-mastery-pct {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.82rem;
+  color: var(--ink-soft, #5a574f);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .cheatsheet-mastery-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
 @media (max-width: 720px) {
   .user-sessions-row__link {
     grid-template-columns: 1fr 1fr;
