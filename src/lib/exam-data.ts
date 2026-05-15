@@ -27,6 +27,7 @@ export type ExamQuestion = {
   explanation: string;
   explanationSource: "provided" | "generated";
   options: ExamOption[];
+  cheatsheets: Array<{ slug: string; title: string; category: string }>;
 };
 
 export type ExamSession = {
@@ -878,11 +879,32 @@ export async function getExamSession(
         explanation: asString(row.explanation),
         explanationSource: asString(row.explanation_source) as "provided" | "generated",
         options: [],
+        cheatsheets: [],
       });
     }
     grouped.get(qid)!.options.push({
       label: asString(row.option_label),
       body: asString(row.option_body),
+    });
+  }
+
+  const sheets = await db.execute({
+    sql: `SELECT qc.question_id AS qid, c.slug, c.title, c.category
+          FROM question_cheatsheets qc
+          JOIN cheatsheets c ON c.id = qc.cheatsheet_id
+          JOIN exam_session_questions esq ON esq.question_id = qc.question_id
+          WHERE esq.session_id = ?
+          ORDER BY c.category ASC, c.title ASC`,
+    args: [sessionId],
+  });
+  for (const row of sheets.rows) {
+    const qid = asNumber(row.qid);
+    const target = grouped.get(qid);
+    if (!target) continue;
+    target.cheatsheets.push({
+      slug: asString(row.slug),
+      title: asString(row.title),
+      category: asString(row.category),
     });
   }
 

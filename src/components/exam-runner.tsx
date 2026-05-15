@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Clock3,
   ChevronDown,
+  ExternalLink,
   Home,
   Pencil,
   XCircle,
@@ -680,6 +681,34 @@ export function ExamRunner({
                   Explication reconstruite a partir de la question parce que le
                   fichier source n&apos;etait pas complet sur ce point.
                 </p>
+              ) : null}
+
+              {currentQuestion.cheatsheets.length > 0 ? (
+                <div className="feedback-cheatsheets">
+                  <p className="feedback-cheatsheets-label">
+                    <BookOpen size={14} />
+                    Cheatsheets liées
+                  </p>
+                  <div className="feedback-cheatsheets-list">
+                    {currentQuestion.cheatsheets.map((sheet) => (
+                      <a
+                        className="feedback-cheatsheet-link"
+                        href={`/cheatsheets/${sheet.slug}`}
+                        key={sheet.slug}
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        <span className="feedback-cheatsheet-category">
+                          {sheet.category}
+                        </span>
+                        <span className="feedback-cheatsheet-title">
+                          {sheet.title}
+                        </span>
+                        <ExternalLink size={12} />
+                      </a>
+                    ))}
+                  </div>
+                </div>
               ) : null}
             </div>
           ) : null}
