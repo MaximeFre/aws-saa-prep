@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, UserRound } from "lucide-react";
+import { UserRound } from "lucide-react";
 
+import { AdminNav } from "@/components/admin-nav";
 import { RoleSelector } from "@/components/role-selector";
 import { requireAdmin } from "@/lib/auth";
 import { listUsersWithStats } from "@/lib/exam-data";
@@ -20,9 +21,10 @@ export default async function AdminUsersPage() {
 
   return (
     <main className="page-shell">
+      <AdminNav />
       <section className="paper-card user-list-hero">
         <div>
-          <p className="eyebrow">Admin · Utilisateurs</p>
+          <p className="eyebrow">Admin</p>
           <h1 className="users-title">Gestion des utilisateurs</h1>
           <p className="users-subtitle">
             {users.length} utilisateurs · {counts.admin} admin
@@ -30,10 +32,6 @@ export default async function AdminUsersPage() {
             {counts.member > 1 ? "s" : ""} · {counts.free} free
           </p>
         </div>
-        <Link className="secondary-button" href="/admin">
-          <ArrowLeft size={16} />
-          Admin
-        </Link>
       </section>
 
       {users.length === 0 ? (

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
+import { AdminNav } from "@/components/admin-nav";
 import { requireAdmin } from "@/lib/auth";
 import { listQuestions } from "@/lib/exam-data";
 
@@ -18,19 +19,16 @@ export default async function AdminQuestionsPage({
 
   return (
     <main className="page-shell">
+      <AdminNav />
       <section className="paper-card user-list-hero">
         <div>
-          <p className="eyebrow">Admin · Questions</p>
+          <p className="eyebrow">Admin</p>
           <h1 className="users-title">Base de questions</h1>
           <p className="users-subtitle">
             {rows.length} resultat{rows.length > 1 ? "s" : ""}
             {search ? ` pour "${search}"` : ""}. Clique pour ouvrir et editer.
           </p>
         </div>
-        <Link className="secondary-button" href="/admin">
-          <ArrowLeft size={16} />
-          Admin
-        </Link>
       </section>
 
       <section className="paper-card questions-toolbar">
