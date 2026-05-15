@@ -22,12 +22,33 @@ import {
   saveProgressAction,
 } from "@/app/actions";
 import type { ExamSession, SessionProgress } from "@/lib/exam-data";
+import { splitPromptParagraphs } from "@/lib/format-prompt";
 import {
   formatCountdown,
   isAnswerCorrect,
   normalizeAnswerSet,
   scoreOutOf1000,
 } from "@/lib/scoring";
+
+function QuestionPrompt({
+  prompt,
+  className,
+}: {
+  prompt: string;
+  className: string;
+}) {
+  const paragraphs = splitPromptParagraphs(prompt);
+  if (paragraphs.length <= 1) {
+    return <h2 className={className}>{paragraphs[0] ?? prompt}</h2>;
+  }
+  const [scenario, ...rest] = paragraphs;
+  return (
+    <div className="question-prompt">
+      <p className="question-scenario">{scenario}</p>
+      <h2 className={className}>{rest.join(" ")}</h2>
+    </div>
+  );
+}
 
 type RunnerState = {
   answers: Record<number, string[]>;
@@ -419,7 +440,10 @@ export function ExamRunner({
                 <div className="result-head">
                   <div>
                     <p className="eyebrow">Question {question.sourceNumber}</p>
-                    <h2 className="result-question">{question.prompt}</h2>
+                    <QuestionPrompt
+                      className="result-question"
+                      prompt={question.prompt}
+                    />
                   </div>
                   <div
                     className={`result-pill ${correct ? "result-pill--ok" : "result-pill--bad"}`}
@@ -552,7 +576,10 @@ export function ExamRunner({
           <div className="question-head">
             <div>
               <p className="eyebrow">Question {currentQuestion.sourceNumber}</p>
-              <h2 className="question-title">{currentQuestion.prompt}</h2>
+              <QuestionPrompt
+                className="question-title"
+                prompt={currentQuestion.prompt}
+              />
             </div>
 
             {isMultipleAnswer(
