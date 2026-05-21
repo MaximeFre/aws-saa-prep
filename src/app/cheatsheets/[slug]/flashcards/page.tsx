@@ -6,6 +6,7 @@ import { FlashcardRunner } from "@/components/flashcard-runner";
 import { requireMember } from "@/lib/auth";
 import { categorySlug } from "@/lib/cheatsheet-style";
 import {
+  FLASHCARD_MASTERY_STREAK,
   getCheatsheetBySlug,
   listFlashcardsForCheatsheetWithReview,
 } from "@/lib/exam-data";
@@ -14,21 +15,36 @@ export const dynamic = "force-dynamic";
 
 export default async function FlashcardsRunPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ filter?: string }>;
 }) {
   const user = await requireMember();
   const { slug } = await params;
+  const { filter } = await searchParams;
   const sheet = await getCheatsheetBySlug(slug);
   if (!sheet) notFound();
 
-  const cards = await listFlashcardsForCheatsheetWithReview(user.id, sheet.id);
+  const allCards = await listFlashcardsForCheatsheetWithReview(user.id, sheet.id);
+
+  const isUnknownFilter = filter === "unknown";
+  const cards = isUnknownFilter
+    ? allCards.filter((c) => {
+        // "Pas encore maîtrisée" = jamais vue, ratée la dernière fois,
+        // ou streak insuffisant.
+        if (c.lastRating === null) return true;
+        if (c.lastRating === "again") return true;
+        return c.streak < FLASHCARD_MASTERY_STREAK;
+      })
+    : allCards;
 
   if (cards.length === 0) {
     redirect(`/cheatsheets/${slug}`);
   }
 
   const catClass = categorySlug(sheet.category);
+  const sessionKey = isUnknownFilter ? `${slug}:unknown` : slug;
 
   return (
     <div className={`flashcards-shell flashcards-shell--${catClass}`}>
@@ -42,7 +58,10 @@ export default async function FlashcardsRunPage({
         </Link>
         <div className="flashcards-shell-title">
           <Layers size={14} />
-          <span>{sheet.title}</span>
+          <span>
+            {sheet.title}
+            {isUnknownFilter ? " · non maîtrisées" : ""}
+          </span>
         </div>
         <span className="flashcards-shell-spacer" />
       </header>
@@ -58,6 +77,7 @@ export default async function FlashcardsRunPage({
         cheatsheetSlug={slug}
         cheatsheetTitle={sheet.title}
         categoryClass={catClass}
+        sessionKey={sessionKey}
       />
     </div>
   );

@@ -103,12 +103,15 @@ export function FlashcardRunner({
   cheatsheetSlug,
   cheatsheetTitle,
   categoryClass,
+  sessionKey,
 }: {
   cards: RunnerCard[];
   cheatsheetSlug: string;
   cheatsheetTitle: string;
   categoryClass: string;
+  sessionKey?: string;
 }) {
+  const storageId = sessionKey ?? cheatsheetSlug;
   const [order, setOrder] = useState<number[]>(() => cards.map((_, i) => i));
   const [cursor, setCursor] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -133,14 +136,14 @@ export function FlashcardRunner({
 
   // Restauration depuis localStorage au montage.
   useEffect(() => {
-    const persisted = loadPersistedSession(cheatsheetSlug, cards.length);
+    const persisted = loadPersistedSession(storageId, cards.length);
     if (persisted) {
       setOrder(persisted.order);
       setCursor(persisted.cursor);
       setStats(persisted.stats);
     }
     setHydrated(true);
-  }, [cheatsheetSlug, cards.length]);
+  }, [storageId, cards.length]);
 
   // Sauvegarde automatique à chaque changement d'avancement.
   useEffect(() => {
@@ -154,11 +157,11 @@ export function FlashcardRunner({
         order,
         savedAt: Date.now(),
       };
-      window.localStorage.setItem(storageKey(cheatsheetSlug), JSON.stringify(payload));
+      window.localStorage.setItem(storageKey(storageId), JSON.stringify(payload));
     } catch {
       // localStorage indispo (mode privé Safari, quota) — on ignore.
     }
-  }, [hydrated, cursor, stats, order, cheatsheetSlug]);
+  }, [hydrated, cursor, stats, order, storageId]);
 
   useEffect(() => {
     setFlipped(false);

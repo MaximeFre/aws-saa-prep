@@ -125,6 +125,23 @@ export default async function CheatsheetDetailPage({
                     : ""
                 }`}
           </p>
+          {flashcardCount > 0 ? (
+            <div className="cheatsheet-flashcards-bar" aria-hidden>
+              <span
+                className="cheatsheet-flashcards-bar-seg cheatsheet-flashcards-bar-seg--mastered"
+                style={{ width: `${(flashcardProgress.mastered / flashcardProgress.total) * 100}%` }}
+              />
+              <span
+                className="cheatsheet-flashcards-bar-seg cheatsheet-flashcards-bar-seg--learning"
+                style={{ width: `${(flashcardProgress.learning / flashcardProgress.total) * 100}%` }}
+              />
+              <span className="cheatsheet-flashcards-bar-legend">
+                <span>{flashcardProgress.mastered} maîtrisée{flashcardProgress.mastered > 1 ? "s" : ""}</span>
+                <span>{flashcardProgress.learning} en cours</span>
+                <span>{flashcardProgress.fresh} jamais vue{flashcardProgress.fresh > 1 ? "s" : ""}</span>
+              </span>
+            </div>
+          ) : null}
         </div>
         {flashcardCount === 0 ? (
           <span className="secondary-button" aria-disabled style={{ opacity: 0.55, cursor: "not-allowed" }}>
@@ -132,13 +149,23 @@ export default async function CheatsheetDetailPage({
             Bientôt
           </span>
         ) : (
-          <Link
-            className="primary-button"
-            href={`/cheatsheets/${sheet.slug}/flashcards`}
-          >
-            <Layers size={16} />
-            Réviser en flashcards
-          </Link>
+          <div className="cheatsheet-flashcards-actions">
+            <Link
+              className="primary-button"
+              href={`/cheatsheets/${sheet.slug}/flashcards`}
+            >
+              <Layers size={16} />
+              Tout le deck
+            </Link>
+            {flashcardProgress.learning + flashcardProgress.fresh > 0 ? (
+              <Link
+                className="secondary-button"
+                href={`/cheatsheets/${sheet.slug}/flashcards?filter=unknown`}
+              >
+                Non maîtrisées ({flashcardProgress.learning + flashcardProgress.fresh})
+              </Link>
+            ) : null}
+          </div>
         )}
       </section>
 
