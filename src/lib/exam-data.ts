@@ -292,6 +292,329 @@ export async function unlinkQuestionFromCheatsheet(
   });
 }
 
+export type FlashcardSource = "manual" | "generated";
+export type FlashcardRating = "again" | "good" | "easy";
+
+export const FLASHCARD_RATINGS: FlashcardRating[] = ["again", "good", "easy"];
+export const FLASHCARD_MASTERY_STREAK = 2;
+
+export type Flashcard = {
+  id: number;
+  cheatsheetId: number;
+  question: string;
+  answer: string;
+  hint: string | null;
+  position: number;
+  source: FlashcardSource;
+};
+
+export type FlashcardWithReview = Flashcard & {
+  lastRating: FlashcardRating | null;
+  streak: number;
+  lastReviewedAt: string | null;
+};
+
+function rowToFlashcard(row: Record<string, unknown>): Flashcard {
+  return {
+    id: asNumber(row.id),
+    cheatsheetId: asNumber(row.cheatsheet_id),
+    question: asString(row.question),
+    answer: asString(row.answer),
+    hint: asNullableString(row.hint),
+    position: asNumber(row.position),
+    source: (asString(row.source) || "manual") as FlashcardSource,
+  };
+}
+
+export async function listFlashcardsForCheatsheet(
+  cheatsheetId: number,
+): Promise<Flashcard[]> {
+  const db = await getDb();
+  const r = await db.execute({
+    sql: `SELECT id, cheatsheet_id, question, answer, hint, position, source
+          FROM flashcards
+          WHERE cheatsheet_id = ?
+          ORDER BY position ASC, id ASC`,
+    args: [cheatsheetId],
+  });
+  return r.rows.map((row) => rowToFlashcard(row as Record<string, unknown>));
+}
+
+export async function listFlashcardsForCheatsheetWithReview(
+  userId: number,
+  cheatsheetId: number,
+): Promise<FlashcardWithReview[]> {
+  const db = await getDb();
+  const r = await db.execute({
+    sql: `SELECT f.id, f.cheatsheet_id, f.question, f.answer, f.hint,
+                 f.position, f.source,
+                 r.rating AS last_rating, r.streak AS streak,
+                 r.reviewed_at AS reviewed_at
+          FROM flashcards f
+          LEFT JOIN flashcard_reviews r
+            ON r.flashcard_id = f.id AND r.user_id = ?
+          WHERE f.cheatsheet_id = ?
+          ORDER BY f.position ASC, f.id ASC`,
+    args: [userId, cheatsheetId],
+  });
+  return r.rows.map((row) => {
+    const base = rowToFlashcard(row as Record<string, unknown>);
+    const ratingStr = asNullableString(row.last_rating);
+    const rating =
+      ratingStr && FLASHCARD_RATINGS.includes(ratingStr as FlashcardRating)
+        ? (ratingStr as FlashcardRating)
+        : null;
+    return {
+      ...base,
+      lastRating: rating,
+      streak: asNumber(row.streak),
+      lastReviewedAt: asNullableString(row.reviewed_at),
+    };
+  });
+}
+
+export async function countFlashcardsForCheatsheet(
+  cheatsheetId: number,
+): Promise<number> {
+  const db = await getDb();
+  const r = await db.execute({
+    sql: "SELECT COUNT(*) AS n FROM flashcards WHERE cheatsheet_id = ?",
+    args: [cheatsheetId],
+  });
+  return asNumber(r.rows[0]?.n);
+}
+
+export type FlashcardDeckProgress = {
+  total: number;
+  mastered: number;
+  learning: number;
+  fresh: number;
+};
+
+export async function getFlashcardDeckProgress(
+  userId: number,
+  cheatsheetId: number,
+): Promise<FlashcardDeckProgress> {
+  const db = await getDb();
+  const r = await db.execute({
+    sql: `SELECT
+            COUNT(f.id) AS total,
+            SUM(CASE
+                  WHEN r.streak >= ? AND r.rating != 'again' THEN 1
+                  ELSE 0
+                END) AS mastered,
+            SUM(CASE
+                  WHEN r.rating IS NOT NULL
+                       AND NOT (r.streak >= ? AND r.rating != 'again')
+                  THEN 1 ELSE 0
+                END) AS learning,
+            SUM(CASE WHEN r.rating IS NULL THEN 1 ELSE 0 END) AS fresh
+          FROM flashcards f
+          LEFT JOIN flashcard_reviews r
+            ON r.flashcard_id = f.id AND r.user_id = ?
+          WHERE f.cheatsheet_id = ?`,
+    args: [
+      FLASHCARD_MASTERY_STREAK,
+      FLASHCARD_MASTERY_STREAK,
+      userId,
+      cheatsheetId,
+    ],
+  });
+  const row = r.rows[0];
+  return {
+    total: asNumber(row?.total),
+    mastered: asNumber(row?.mastered),
+    learning: asNumber(row?.learning),
+    fresh: asNumber(row?.fresh),
+  };
+}
+
+export async function recordFlashcardReview(
+  userId: number,
+  flashcardId: number,
+  rating: FlashcardRating,
+): Promise<{ streak: number }> {
+  const db = await getDb();
+  const existing = await db.execute({
+    sql: "SELECT streak, rating FROM flashcard_reviews WHERE user_id = ? AND flashcard_id = ?",
+    args: [userId, flashcardId],
+  });
+  const prev = existing.rows[0];
+  const prevStreak = prev ? asNumber(prev.streak) : 0;
+  const prevRating = prev ? asString(prev.rating) : null;
+  let nextStreak: number;
+  if (rating === "again") {
+    nextStreak = 0;
+  } else if (prevRating === "again" || prevRating === null) {
+    nextStreak = 1;
+  } else {
+    nextStreak = prevStreak + 1;
+  }
+  await db.execute({
+    sql: `INSERT INTO flashcard_reviews (user_id, flashcard_id, rating, streak, reviewed_at)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT (user_id, flashcard_id) DO UPDATE SET
+            rating = excluded.rating,
+            streak = excluded.streak,
+            reviewed_at = excluded.reviewed_at`,
+    args: [
+      userId,
+      flashcardId,
+      rating,
+      nextStreak,
+      new Date().toISOString(),
+    ],
+  });
+  return { streak: nextStreak };
+}
+
+export async function getFlashcardById(id: number): Promise<Flashcard | null> {
+  const db = await getDb();
+  const r = await db.execute({
+    sql: `SELECT id, cheatsheet_id, question, answer, hint, position, source
+          FROM flashcards WHERE id = ?`,
+    args: [id],
+  });
+  const row = r.rows[0];
+  if (!row) return null;
+  return rowToFlashcard(row as Record<string, unknown>);
+}
+
+export type FlashcardInput = {
+  question: string;
+  answer: string;
+  hint: string | null;
+  position?: number;
+  source?: FlashcardSource;
+};
+
+export async function createFlashcard(
+  cheatsheetId: number,
+  input: FlashcardInput,
+): Promise<{ id: number }> {
+  const db = await getDb();
+  const now = new Date().toISOString();
+  let position = input.position;
+  if (position === undefined) {
+    const r = await db.execute({
+      sql: "SELECT COALESCE(MAX(position), 0) AS m FROM flashcards WHERE cheatsheet_id = ?",
+      args: [cheatsheetId],
+    });
+    position = asNumber(r.rows[0]?.m) + 1;
+  }
+  const info = await db.execute({
+    sql: `INSERT INTO flashcards
+            (cheatsheet_id, question, answer, hint, position, source, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      cheatsheetId,
+      input.question,
+      input.answer,
+      input.hint,
+      position,
+      input.source ?? "manual",
+      now,
+      now,
+    ],
+  });
+  return { id: Number(info.lastInsertRowid) };
+}
+
+export async function updateFlashcard(
+  id: number,
+  input: FlashcardInput,
+): Promise<void> {
+  const db = await getDb();
+  const fields: string[] = ["question = ?", "answer = ?", "hint = ?", "updated_at = ?"];
+  const args: Array<string | number | null> = [
+    input.question,
+    input.answer,
+    input.hint,
+    new Date().toISOString(),
+  ];
+  if (input.position !== undefined) {
+    fields.push("position = ?");
+    args.push(input.position);
+  }
+  if (input.source !== undefined) {
+    fields.push("source = ?");
+    args.push(input.source);
+  }
+  args.push(id);
+  await db.execute({
+    sql: `UPDATE flashcards SET ${fields.join(", ")} WHERE id = ?`,
+    args,
+  });
+}
+
+export async function deleteFlashcard(id: number): Promise<void> {
+  const db = await getDb();
+  await db.execute({ sql: "DELETE FROM flashcards WHERE id = ?", args: [id] });
+}
+
+export type FlashcardBulkInput = {
+  question: string;
+  answer: string;
+  hint?: string | null;
+  position: number;
+};
+
+export async function bulkReplaceFlashcards(
+  cheatsheetId: number,
+  cards: FlashcardBulkInput[],
+  source: FlashcardSource = "generated",
+): Promise<{ inserted: number }> {
+  const db = await getDb();
+  const now = new Date().toISOString();
+  const statements = [
+    {
+      sql: "DELETE FROM flashcards WHERE cheatsheet_id = ?",
+      args: [cheatsheetId] as Array<string | number | null>,
+    },
+    ...cards.map((card) => ({
+      sql: `INSERT INTO flashcards
+              (cheatsheet_id, question, answer, hint, position, source, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        cheatsheetId,
+        card.question,
+        card.answer,
+        card.hint ?? null,
+        card.position,
+        source,
+        now,
+        now,
+      ] as Array<string | number | null>,
+    })),
+  ];
+  await db.batch(statements, "write");
+  return { inserted: cards.length };
+}
+
+export type CheatsheetWithFlashcardCount = CheatsheetListRow & {
+  flashcardCount: number;
+};
+
+export async function listCheatsheetsWithFlashcardCount(): Promise<
+  CheatsheetWithFlashcardCount[]
+> {
+  const db = await getDb();
+  const r = await db.execute(
+    `SELECT c.id, c.slug, c.title, c.category, c.priority,
+            (SELECT COUNT(*) FROM flashcards f WHERE f.cheatsheet_id = c.id) AS flashcardCount
+       FROM cheatsheets c
+       ORDER BY c.category ASC, c.priority ASC, c.title ASC`,
+  );
+  return r.rows.map((row) => ({
+    id: asNumber(row.id),
+    slug: asString(row.slug),
+    title: asString(row.title),
+    category: asString(row.category),
+    priority: asString(row.priority),
+    flashcardCount: asNumber(row.flashcardCount),
+  }));
+}
+
 export type CheatsheetMastery = {
   cheatsheetId: number;
   total: number;

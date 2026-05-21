@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertCircle, ArrowLeft, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowLeft, Layers, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -9,9 +9,11 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 import { requireMember } from "@/lib/auth";
 import { categorySlug, prioritySlug } from "@/lib/cheatsheet-style";
 import {
+  countFlashcardsForCheatsheet,
   countQuestionsForCheatsheet,
   getCheatsheetBySlug,
   getCheatsheetMastery,
+  getFlashcardDeckProgress,
 } from "@/lib/exam-data";
 
 export const dynamic = "force-dynamic";
@@ -29,10 +31,13 @@ export default async function CheatsheetDetailPage({
   const sheet = await getCheatsheetBySlug(slug);
   if (!sheet) notFound();
 
-  const [questionCount, mastery] = await Promise.all([
-    countQuestionsForCheatsheet(sheet.id),
-    getCheatsheetMastery(user.id, sheet.id),
-  ]);
+  const [questionCount, mastery, flashcardCount, flashcardProgress] =
+    await Promise.all([
+      countQuestionsForCheatsheet(sheet.id),
+      getCheatsheetMastery(user.id, sheet.id),
+      countFlashcardsForCheatsheet(sheet.id),
+      getFlashcardDeckProgress(user.id, sheet.id),
+    ]);
 
   const catClass = categorySlug(sheet.category);
   const tierClass = prioritySlug(sheet.priority);
@@ -41,6 +46,10 @@ export default async function CheatsheetDetailPage({
       ? Math.round(mastery.masteryRate)
       : null;
   const emptyQuizError = sp.quiz === "empty";
+  const flashcardMasteryPct =
+    flashcardProgress.total > 0
+      ? Math.round((flashcardProgress.mastered / flashcardProgress.total) * 100)
+      : null;
 
   return (
     <main className="page-shell">
@@ -101,6 +110,36 @@ export default async function CheatsheetDetailPage({
             Lancer le quiz
           </FormSubmitButton>
         </form>
+      </section>
+
+      <section className={`paper-card cheatsheet-quiz-card cheatsheet-flashcards-card cheatsheet-flashcards-card--${catClass}`}>
+        <div className="cheatsheet-quiz-info">
+          <p className="eyebrow">Flashcards</p>
+          <h2>Révise par cartes mémorables</h2>
+          <p className="cheatsheet-quiz-meta">
+            {flashcardCount === 0
+              ? "Aucune flashcard générée pour cette fiche."
+              : `${flashcardCount} carte${flashcardCount > 1 ? "s" : ""}${
+                  flashcardMasteryPct !== null
+                    ? ` · ${flashcardMasteryPct}% maîtrisée${flashcardProgress.mastered > 1 ? "s" : ""} (${flashcardProgress.mastered}/${flashcardProgress.total})`
+                    : ""
+                }`}
+          </p>
+        </div>
+        {flashcardCount === 0 ? (
+          <span className="secondary-button" aria-disabled style={{ opacity: 0.55, cursor: "not-allowed" }}>
+            <Layers size={16} />
+            Bientôt
+          </span>
+        ) : (
+          <Link
+            className="primary-button"
+            href={`/cheatsheets/${sheet.slug}/flashcards`}
+          >
+            <Layers size={16} />
+            Réviser en flashcards
+          </Link>
+        )}
       </section>
 
       <article className="paper-card cheatsheet-article">

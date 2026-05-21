@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileQuestion, Home, Users } from "lucide-react";
+import { FileQuestion, Home, Layers, Users } from "lucide-react";
 
 const TABS = [
   { href: "/admin/users", label: "Utilisateurs", Icon: Users },
   { href: "/admin/questions", label: "Questions", Icon: FileQuestion },
+  { href: "/admin/flashcards", label: "Flashcards", Icon: Layers },
 ] as const;
 
 export function AdminNav() {

@@ -95,6 +95,38 @@ export async function ensureMigrations(): Promise<void> {
         "ALTER TABLE questions ADD COLUMN extra_content TEXT",
       );
     }
+    await client.execute(
+      `CREATE TABLE IF NOT EXISTS flashcards (
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         cheatsheet_id INTEGER NOT NULL,
+         question TEXT NOT NULL,
+         answer TEXT NOT NULL,
+         hint TEXT,
+         position INTEGER NOT NULL DEFAULT 0,
+         source TEXT NOT NULL DEFAULT 'manual',
+         created_at TEXT NOT NULL,
+         updated_at TEXT NOT NULL,
+         FOREIGN KEY(cheatsheet_id) REFERENCES cheatsheets(id) ON DELETE CASCADE
+       )`,
+    );
+    await client.execute(
+      "CREATE INDEX IF NOT EXISTS idx_flashcards_cheatsheet ON flashcards(cheatsheet_id, position)",
+    );
+    await client.execute(
+      `CREATE TABLE IF NOT EXISTS flashcard_reviews (
+         user_id INTEGER NOT NULL,
+         flashcard_id INTEGER NOT NULL,
+         rating TEXT NOT NULL,
+         streak INTEGER NOT NULL DEFAULT 0,
+         reviewed_at TEXT NOT NULL,
+         PRIMARY KEY (user_id, flashcard_id),
+         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+         FOREIGN KEY(flashcard_id) REFERENCES flashcards(id) ON DELETE CASCADE
+       )`,
+    );
+    await client.execute(
+      "CREATE INDEX IF NOT EXISTS idx_flashcard_reviews_card ON flashcard_reviews(flashcard_id)",
+    );
   })();
   return g.__awsExamLibsqlReady;
 }

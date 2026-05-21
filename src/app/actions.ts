@@ -14,18 +14,28 @@ import {
 } from "@/lib/auth";
 import {
   ALL_ROLES,
+  bulkReplaceFlashcards,
   countAdmins,
   createExamSession,
+  createFlashcard,
   createQuizSession,
   deleteExamSession,
+  deleteFlashcard,
+  FLASHCARD_RATINGS,
   finalizeExamSession,
   getExamSessionOwner,
+  getFlashcardById,
   QuizCreationError,
+  recordFlashcardReview,
   saveSessionProgress,
   setUserRole,
+  updateFlashcard,
   updateQuestion,
   updateQuestionExplanation,
   type ExamMode,
+  type FlashcardBulkInput,
+  type FlashcardInput,
+  type FlashcardRating,
   type QuestionUpdatePayload,
   type UserRole,
 } from "@/lib/exam-data";
@@ -138,6 +148,109 @@ export async function finalizeExamAction(
   answers: Array<{ questionId: number; selected: string[]; isCorrect: boolean }>,
 ): Promise<void> {
   await finalizeExamSession(sessionId, correctCount, score, answers);
+}
+
+export async function rateFlashcardAction(
+  flashcardId: number,
+  rating: FlashcardRating,
+): Promise<{ error: string | null; streak: number | null }> {
+  const user = await requireMember();
+  if (!FLASHCARD_RATINGS.includes(rating)) {
+    return { error: "Note invalide.", streak: null };
+  }
+  if (!Number.isFinite(flashcardId) || flashcardId <= 0) {
+    return { error: "Flashcard introuvable.", streak: null };
+  }
+  const card = await getFlashcardById(flashcardId);
+  if (!card) {
+    return { error: "Flashcard introuvable.", streak: null };
+  }
+  const result = await recordFlashcardReview(user.id, flashcardId, rating);
+  return { error: null, streak: result.streak };
+}
+
+export async function createFlashcardAction(
+  cheatsheetId: number,
+  input: FlashcardInput,
+): Promise<{ error: string | null; id: number | null }> {
+  await requireAdmin();
+  if (!Number.isFinite(cheatsheetId) || cheatsheetId <= 0) {
+    return { error: "Cheatsheet invalide.", id: null };
+  }
+  if (!input.question.trim() || !input.answer.trim()) {
+    return { error: "Question et réponse requises.", id: null };
+  }
+  const { id } = await createFlashcard(cheatsheetId, {
+    ...input,
+    question: input.question.trim(),
+    answer: input.answer.trim(),
+    hint: input.hint?.trim() ? input.hint.trim() : null,
+  });
+  revalidatePath(`/admin/flashcards/${cheatsheetId}`);
+  return { error: null, id };
+}
+
+export async function updateFlashcardAction(
+  flashcardId: number,
+  input: FlashcardInput,
+): Promise<{ error: string | null }> {
+  await requireAdmin();
+  if (!input.question.trim() || !input.answer.trim()) {
+    return { error: "Question et réponse requises." };
+  }
+  const existing = await getFlashcardById(flashcardId);
+  if (!existing) return { error: "Flashcard introuvable." };
+  await updateFlashcard(flashcardId, {
+    ...input,
+    question: input.question.trim(),
+    answer: input.answer.trim(),
+    hint: input.hint?.trim() ? input.hint.trim() : null,
+  });
+  revalidatePath(`/admin/flashcards/${existing.cheatsheetId}`);
+  return { error: null };
+}
+
+export async function deleteFlashcardAction(
+  flashcardId: number,
+): Promise<{ error: string | null }> {
+  await requireAdmin();
+  const existing = await getFlashcardById(flashcardId);
+  if (!existing) return { error: "Flashcard introuvable." };
+  await deleteFlashcard(flashcardId);
+  revalidatePath(`/admin/flashcards/${existing.cheatsheetId}`);
+  return { error: null };
+}
+
+export async function bulkReplaceFlashcardsAction(
+  cheatsheetId: number,
+  cards: FlashcardBulkInput[],
+): Promise<{ error: string | null; inserted: number }> {
+  await requireAdmin();
+  if (!Number.isFinite(cheatsheetId) || cheatsheetId <= 0) {
+    return { error: "Cheatsheet invalide.", inserted: 0 };
+  }
+  if (!Array.isArray(cards) || cards.length === 0) {
+    return { error: "Aucune carte fournie.", inserted: 0 };
+  }
+  const normalized = cards
+    .filter((c) => c.question?.trim() && c.answer?.trim())
+    .map((c, i) => ({
+      question: c.question.trim(),
+      answer: c.answer.trim(),
+      hint: c.hint?.trim() ? c.hint.trim() : null,
+      position: c.position ?? i + 1,
+    }));
+  if (normalized.length === 0) {
+    return { error: "Toutes les cartes sont vides.", inserted: 0 };
+  }
+  const { inserted } = await bulkReplaceFlashcards(
+    cheatsheetId,
+    normalized,
+    "generated",
+  );
+  revalidatePath(`/admin/flashcards/${cheatsheetId}`);
+  revalidatePath("/admin/flashcards");
+  return { error: null, inserted };
 }
 
 export async function deleteSessionAction(
