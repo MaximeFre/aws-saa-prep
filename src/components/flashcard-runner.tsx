@@ -115,7 +115,11 @@ export function FlashcardRunner({
       id: event.pointerId,
     };
     movedRef.current = false;
-    (event.target as Element).setPointerCapture?.(event.pointerId);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some browsers refuse capture; pointer events still fire normally.
+    }
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -361,30 +365,32 @@ export function FlashcardRunner({
               }
               tabIndex={isActive ? 0 : -1}
             >
-              <div className="flashcard-face flashcard-face--front">
-                <span className="flashcard-eyebrow">Question</span>
-                <div className="flashcard-content flashcard-content--question">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {card.question}
-                  </ReactMarkdown>
+              <div className="flashcard-inner">
+                <div className="flashcard-face flashcard-face--front">
+                  <span className="flashcard-eyebrow">Question</span>
+                  <div className="flashcard-content flashcard-content--question">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {card.question}
+                    </ReactMarkdown>
+                  </div>
+                  {isActive && card.hint ? (
+                    <p className="flashcard-hint">💡 {card.hint}</p>
+                  ) : null}
+                  {isActive ? (
+                    <span className="flashcard-flip-hint">Tap pour révéler</span>
+                  ) : null}
                 </div>
-                {isActive && card.hint ? (
-                  <p className="flashcard-hint">💡 {card.hint}</p>
-                ) : null}
-                {isActive ? (
-                  <span className="flashcard-flip-hint">Tap pour révéler</span>
-                ) : null}
-              </div>
-              <div className="flashcard-face flashcard-face--back" aria-hidden={!isActive}>
-                <span className="flashcard-eyebrow">Réponse</span>
-                <div className="flashcard-content flashcard-content--answer">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {card.answer}
-                  </ReactMarkdown>
+                <div className="flashcard-face flashcard-face--back" aria-hidden={!isActive}>
+                  <span className="flashcard-eyebrow">Réponse</span>
+                  <div className="flashcard-content flashcard-content--answer">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {card.answer}
+                    </ReactMarkdown>
+                  </div>
+                  {isActive ? (
+                    <span className="flashcard-flip-hint">Note ta réussite ↓</span>
+                  ) : null}
                 </div>
-                {isActive ? (
-                  <span className="flashcard-flip-hint">Note ta réussite ↓</span>
-                ) : null}
               </div>
               <span className="flashcard-swipe-hint flashcard-swipe-hint--left" aria-hidden>
                 <X size={14} /> À revoir
