@@ -31,6 +31,61 @@ type SessionStat = { cardId: number; rating: Rating };
 
 const SWIPE_TRIGGER = 90;
 const SWIPE_LOCK_AXIS = 12;
+const STORAGE_VERSION = 1;
+const STORAGE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
+
+function storageKey(slug: string): string {
+  return `aws-saa:flashcards:${slug}`;
+}
+
+type PersistedSession = {
+  version: number;
+  cursor: number;
+  stats: SessionStat[];
+  order: number[];
+  savedAt: number;
+};
+
+function loadPersistedSession(
+  slug: string,
+  totalCards: number,
+): PersistedSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(storageKey(slug));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedSession>;
+    if (
+      parsed.version !== STORAGE_VERSION ||
+      typeof parsed.cursor !== "number" ||
+      !Array.isArray(parsed.order) ||
+      !Array.isArray(parsed.stats) ||
+      typeof parsed.savedAt !== "number"
+    ) {
+      return null;
+    }
+    // Expirée ?
+    if (Date.now() - parsed.savedAt > STORAGE_TTL_MS) {
+      window.localStorage.removeItem(storageKey(slug));
+      return null;
+    }
+    // Cohérence avec le deck courant
+    if (
+      parsed.order.length === 0 ||
+      parsed.order.length > totalCards ||
+      parsed.cursor < 0 ||
+      parsed.cursor > parsed.order.length
+    ) {
+      return null;
+    }
+    if (!parsed.order.every((i) => Number.isInteger(i) && i >= 0 && i < totalCards)) {
+      return null;
+    }
+    return parsed as PersistedSession;
+  } catch {
+    return null;
+  }
+}
 
 function vibrate(pattern: number | number[]) {
   if (typeof navigator === "undefined") return;
@@ -62,6 +117,7 @@ export function FlashcardRunner({
     null,
   );
   const [exitVector, setExitVector] = useState<{ x: number; y: number } | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const [, startTransition] = useTransition();
 
   const pointerStart = useRef<{ x: number; y: number; id: number } | null>(null);
@@ -74,6 +130,35 @@ export function FlashcardRunner({
   const progressPct = order.length
     ? Math.min(100, Math.round((cursor / order.length) * 100))
     : 0;
+
+  // Restauration depuis localStorage au montage.
+  useEffect(() => {
+    const persisted = loadPersistedSession(cheatsheetSlug, cards.length);
+    if (persisted) {
+      setOrder(persisted.order);
+      setCursor(persisted.cursor);
+      setStats(persisted.stats);
+    }
+    setHydrated(true);
+  }, [cheatsheetSlug, cards.length]);
+
+  // Sauvegarde automatique à chaque changement d'avancement.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (typeof window === "undefined") return;
+    try {
+      const payload: PersistedSession = {
+        version: STORAGE_VERSION,
+        cursor,
+        stats,
+        order,
+        savedAt: Date.now(),
+      };
+      window.localStorage.setItem(storageKey(cheatsheetSlug), JSON.stringify(payload));
+    } catch {
+      // localStorage indispo (mode privé Safari, quota) — on ignore.
+    }
+  }, [hydrated, cursor, stats, order, cheatsheetSlug]);
 
   useEffect(() => {
     setFlipped(false);
