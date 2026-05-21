@@ -96,6 +96,12 @@ export function FlashcardRunner({
         });
       });
       window.setTimeout(() => {
+        // Reset within the same batch as the cursor advance so the
+        // newly-promoted card never inherits the exit transform of
+        // the card that just left.
+        setExitVector(null);
+        setFlipped(false);
+        setDrag(null);
         setCursor((c) => c + 1);
       }, 220);
     },

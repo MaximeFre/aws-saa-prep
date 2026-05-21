@@ -2874,6 +2874,7 @@ button {
   border-radius: inherit;
   transform-style: preserve-3d;
   transition: transform 0.55s cubic-bezier(0.32, 0.72, 0, 1);
+  touch-action: none;
 }
 
 .flashcard--flipped .flashcard-inner {
@@ -2937,6 +2938,7 @@ button {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   border-radius: inherit;
+  touch-action: none;
   background:
     linear-gradient(165deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 100%),
     linear-gradient(180deg, #1c2030 0%, #14172a 100%);
@@ -2970,11 +2972,14 @@ button {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  overflow: auto;
+  overflow: hidden;
   font-size: clamp(1.1rem, 2.4vw + 0.6rem, 1.55rem);
   line-height: 1.4;
   color: #f7f5f1;
-  -webkit-overflow-scrolling: touch;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .flashcard-content--question {
