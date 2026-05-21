@@ -1,12 +1,12 @@
 ---
 name: cheatsheet-to-flashcards
 description: |
-  Découpe une cheatsheet AWS (markdown du dossier cheatsheet/) en un deck de flashcards
-  atomiques et les insère directement dans la base via scripts/import-flashcards.mjs.
-  Mode replace par cheatsheet (DELETE puis INSERT du deck entier). Utilise ce skill
-  quand l'utilisateur dit "génère des flashcards", "découpe cette cheatsheet en
-  flashcards", "transforme la fiche X en cartes", "/cheatsheet-to-flashcards", ou
-  fournit un chemin vers un .md du dossier cheatsheet/.
+  Découpe une cheatsheet AWS (contenu lu depuis la DB du projet) en un deck de
+  flashcards atomiques et les insère directement en base via
+  scripts/import-flashcards.mjs. Mode replace par cheatsheet (DELETE puis INSERT
+  du deck entier). Utilise ce skill quand l'utilisateur dit "génère des flashcards",
+  "découpe cette cheatsheet en flashcards", "transforme la fiche X en cartes",
+  "/cheatsheet-to-flashcards", ou fournit un slug / titre de cheatsheet.
 allowed-tools:
   - Read
   - Write
@@ -16,66 +16,108 @@ allowed-tools:
 
 # Cheatsheet → Flashcards (direct DB)
 
-Transforme une fiche markdown en deck de flashcards et **les insère directement en
-base**. Pas de fichier JSON persistant — le contenu est piped vers le script d'import
-qui réécrit le deck pour la cheatsheet ciblée (DELETE + INSERT atomique).
+Transforme une cheatsheet (contenu en DB) en deck de flashcards et **les insère
+directement en base**. Pas de fichier JSON persistant — le contenu est piped vers
+le script d'import qui réécrit le deck pour la cheatsheet ciblée (DELETE + INSERT
+atomique).
+
+## ⚠️ Source de vérité = DB, **pas** les `.md`
+
+Les fichiers `cheatsheet/*.md` du repo sont **obsolètes** (vieille version, pas
+toujours synchronisée). Le contenu à jour est dans la table `cheatsheets`,
+colonne `content`. **Ne lis jamais les `.md` directement** — extrais toujours
+depuis la DB.
 
 ## Pré-requis
 
 - Le script `scripts/import-flashcards.mjs` doit exister (sinon préviens et stoppe).
-- La table `flashcards` doit exister en DB (migration auto via `ensureMigrations()`).
+- Le script `scripts/dump-cheatsheets.mjs` doit exister (dump DB → JSON dans `/tmp`).
+- La table `flashcards` doit exister (auto-créée par le script d'import si absente).
 - `.env.local` doit contenir `TURSO_DATABASE_URL` (et `TURSO_AUTH_TOKEN` si remote).
 
-Avant de générer quoi que ce soit, **vérifie ces 2 fichiers en une passe Bash** :
+Avant de générer, vérifie en une passe :
 
 ```bash
-test -f scripts/import-flashcards.mjs && echo OK_SCRIPT || echo MISSING_SCRIPT
-test -f .env.local && echo OK_ENV || echo MISSING_ENV
+test -f scripts/import-flashcards.mjs && test -f scripts/dump-cheatsheets.mjs && test -f .env.local && echo OK || echo MISSING
 ```
 
-Si l'un manque, arrête, dis-le clairement, propose de coder le script en premier.
+Si quelque chose manque, stoppe et explique.
 
 ## Inputs
 
-- Chemin vers `cheatsheet/*.md` OU nom de service (ex. "S3", "EC2 Auto Scaling").
-  Si nom seul, fais un `Glob cheatsheet/<Nom>*.md` pour résoudre. S'il y a ambiguïté,
-  liste les matches et demande.
-- `--dry-run` : génère + affiche le résumé mais n'insère pas (pour piloter le format).
-- `--all` : traite toutes les fiches de `cheatsheet/*.md` séquentiellement.
+- Slug DB (ex. `s3`, `ec2-auto-scaling`, `caching-strategies`) OU titre approchant.
+- `--dry-run` : génère + affiche résumé sans insérer.
+- `--all` : traite toutes les cheatsheets de la DB séquentiellement.
 
-## Flow par fiche
+Si nom seul, résous le slug via une query DB (voir Flow §1).
 
-1. **Lis** le .md (`Read`).
-2. **Extrais** :
-   - `title` = première ligne `# <Nom>`
-   - `slug` = slug du title (lowercase, non-alphanum → tiret). Doit matcher le `slug`
-     en DB (table `cheatsheets`). Si doute, fais une requête de vérif :
-     ```bash
-     node -e "import('@libsql/client').then(async m=>{const c=m.createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN});const r=await c.execute({sql:'SELECT slug,title FROM cheatsheets WHERE slug LIKE ?',args:['%<hint>%']});console.log(r.rows)})" 2>&1
-     ```
-     Ou plus simple : laisse le script d'import faire la résolution et erreur si pas
-     trouvé.
-3. **Génère** les cartes en suivant la méthode ci-dessous.
-4. **Pipe** vers le script via heredoc :
-   ```bash
-   node scripts/import-flashcards.mjs --slug=<slug> <<'CARDS_JSON'
-   [
-     {"position":1,"question":"…","answer":"…","hint":null,"tags":["s3"]},
-     ...
-   ]
-   CARDS_JSON
-   ```
-   Ajoute `--dry-run` si demandé.
-5. **Affiche** au user le résumé renvoyé par le script (nb cartes insérées,
-   slug, ID cheatsheet) + 3 exemples (1 facile, 1 use-case, 1 piège).
+## Flow par cheatsheet
 
-Le script garantit l'atomicité : il `DELETE FROM flashcards WHERE cheatsheet_id=?`
-puis ré-insère le deck dans une seule transaction. Re-lancer le skill = remplacer le
-deck (pas de duplication).
+### 1. Récupère le contenu depuis la DB
+
+Deux options, choisis selon le contexte :
+
+**Option A — dump global (recommandé pour batch / multi-agents)** : lance une fois
+`node scripts/dump-cheatsheets.mjs`. Ça écrit un JSON par slug dans
+`/tmp/cheatsheet-inputs/<slug>.json` avec les champs `slug, title, category,
+domains, priority, existing_content`. Ensuite chaque traitement lit le JSON local.
+
+**Option B — query ciblée (pour 1 fiche)** :
+
+```bash
+node -e "
+import('./scripts/_db-helpers.mjs').then(async m => {
+  const c = m.makeClient();
+  const r = await c.execute({sql:'SELECT slug, title, content FROM cheatsheets WHERE slug = ?', args:['<SLUG>']});
+  console.log(JSON.stringify(r.rows[0]));
+});
+"
+```
+
+Si l'input est un titre approchant, fais d'abord une recherche `LIKE` :
+
+```bash
+node -e "
+import('./scripts/_db-helpers.mjs').then(async m => {
+  const c = m.makeClient();
+  const r = await c.execute({sql:'SELECT slug, title FROM cheatsheets WHERE title LIKE ? OR slug LIKE ?', args:['%<hint>%','%<hint>%']});
+  console.log(JSON.stringify(r.rows, null, 2));
+});
+"
+```
+
+S'il y a ambiguïté, liste les matches et demande.
+
+### 2. Génère les cartes
+
+Suis la méthode ci-dessous. **Ne lis pas** le `.md` du repo — il peut diverger.
+
+### 3. Pipe vers le script d'import
+
+```bash
+cd "<repo>" && node scripts/import-flashcards.mjs --slug=<slug> <<'CARDS_JSON'
+[
+  {"position":1,"question":"…","answer":"…","hint":null},
+  ...
+]
+CARDS_JSON
+```
+
+Ajoute `--dry-run` si demandé. Le script garantit l'atomicité : `DELETE FROM
+flashcards WHERE cheatsheet_id=?` puis ré-insère en transaction. Re-lancer =
+remplacer le deck (pas de duplication).
+
+### 4. Affiche le résumé
+
+Renvoie au user :
+- Le retour du script (nb cartes insérées, slug, id).
+- 3 exemples de cartes (1 facile, 1 use-case, 1 piège).
+- Si pertinent, la couverture par section.
 
 ## Méthode de découpage (ordre d'importance)
 
-Vise **20–40 cartes** par fiche (jamais < 12, jamais > 50). Élimine trivial/redondant.
+Vise **20–50 cartes** par fiche selon la densité (jamais < 12). Élimine
+trivial/redondant.
 
 ### 1. Définition / purpose (1–2 cartes)
 
@@ -138,20 +180,23 @@ Q: scénario condensé. A: stack recommandée en bullets courts.
 ```json
 [
   {
-    "position": 1,                       // int, base 1, contigu
+    "position": 1,
     "question": "markdown court ≤ 280c",
     "answer":   "markdown court ≤ 600c",
-    "hint":     null,                    // string ou null
-    "tags":     ["s3", "lifecycle"]      // 1-3 tags, en fr, lowercase
+    "hint":     null
   }
 ]
 ```
 
+**Champs persistés** : `position`, `question`, `answer`, `hint`. C'est tout.
+
 Règles strictes :
-- Pas de titres `#`, pas de listes imbriquées. Gras/italique/code OK.
+- Pas de titres `#`, pas de listes imbriquées. Gras/italique/code inline OK.
 - `position` part de 1, contiguë, ordre = ordre de génération (sections 1→6).
-- `tags` : 1–3, lowercase. Non persistés en V1 mais utiles à l'audit.
-- Pas de `source` côté payload — le script force `source='generated'`.
+- `hint` : `null` sauf si la question est ambiguë sans contexte additionnel.
+- **N'ajoute pas de champ `tags`, `source`, `category` ou autre** — le script
+  les ignore silencieusement, c'est du bruit qui coûte des tokens à générer.
+- Le script force `source='generated'` côté DB.
 
 ## Mode `--dry-run`
 
@@ -160,31 +205,43 @@ toucher la DB. À utiliser pour valider une fiche avant de lancer le batch `--al
 
 ## Mode batch (`--all`)
 
-1. `Glob cheatsheet/*.md` → liste.
-2. **Demande confirmation** avant de lancer (montre nb fiches, estim. cartes totales).
-3. Traite séquentiellement :
+1. Lance `node scripts/dump-cheatsheets.mjs` une seule fois (dump global).
+2. List les slugs : `ls /tmp/cheatsheet-inputs/*.json`.
+3. **Demande confirmation** avant de lancer (nb cheatsheets, estim. cartes totales).
+4. Traite séquentiellement ou délègue à des sous-agents (un par cheatsheet) :
    ```
-   [12/54] EC2.md → résolu slug=ec2 → 28 cartes insérées ✓
+   [12/54] caching-strategies → 50 cartes ✓
    ```
-4. À la fin, résume : total cartes, fiches sous le seuil (< 12) à revoir manuellement,
+5. À la fin, résume : total cartes, fiches sous le seuil (< 12) à revoir manuellement,
    éventuelles erreurs de résolution de slug.
 
 Stoppe au premier échec DB. Pour les échecs de slug (cheatsheet absente en DB), skip
 et log — ne fais pas tout planter.
 
-## Procédure résumée (un seul tour si possible)
+### Délégation multi-agents (recommandé pour `--all`)
 
-1. Vérif `import-flashcards.mjs` + `.env.local`.
-2. Résous le(s) fichier(s) cible(s).
-3. Pour chaque fiche : Read .md → génère cartes (mental, pas de fichier intermédiaire)
-   → Bash heredoc vers le script.
+Pour un batch important (> 5 fiches), il est plus efficace de **lancer un sous-agent
+Opus par cheatsheet** en parallèle. Chaque sous-agent reçoit :
+- son slug et le chemin `/tmp/cheatsheet-inputs/<slug>.json`
+- les RÈGLES de découpage de ce skill
+- la commande d'import à exécuter via heredoc
+
+L'agent fait : lecture du JSON → génération → import → rapport.
+
+## Procédure résumée
+
+1. Vérif `import-flashcards.mjs` + `dump-cheatsheets.mjs` + `.env.local`.
+2. Résous le(s) slug(s) cible(s) via DB query.
+3. Pour chaque fiche : lis depuis DB (option A ou B) → génère cartes (mental, pas
+   de fichier intermédiaire) → Bash heredoc vers le script d'import.
 4. Affiche résumé + exemples.
 
 ## Garde-fous
 
-- Fiche < 1500 caractères ou narrative → préviens, propose de skip.
+- Contenu DB < 1500 caractères ou narrative → préviens, propose de skip.
 - Tableau markdown malformé → parse manuel, ne produit pas de cartes vides.
-- N'invente **rien** : info absente de la fiche = pas de carte. Pas de connaissances
-  AWS externes.
+- N'invente **rien** : info absente du contenu DB = pas de carte. Pas de
+  connaissances AWS externes.
 - Si le script renvoie un code de sortie non-zéro, affiche stderr brut au user, ne
   retente pas en boucle.
+- **Ne lis jamais les `cheatsheet/*.md`** du repo : ils sont obsolètes.
